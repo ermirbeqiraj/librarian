@@ -1,0 +1,51 @@
+[project]
+name = "librarian"
+version = "0.1.0"
+description = "An agent that knows everything about the documents I give it."
+readme = "README.md"
+authors = [
+    { name = "ermir", email = "7790756+ermirbeqiraj@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20.0",
+    "docling-core>=2.99",
+    "httpx>=0.28.1",
+    "langchain-mistralai>=1.1.6",
+    "pgvector>=0.5.1",
+    "psycopg[binary]>=3.3.6",
+    "simplejson>=4.2.0",
+    "sqlalchemy>=2.1.4",
+]
+
+[project.scripts]
+librarian = "librarian.__main__:main"
+librarian-ingest = "librarian.ingest.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pyright]
+include = ["src"]
+venvPath = "."
+venv = ".venv"
+
+[tool.alembic]
+script_location = "%(here)s/src/librarian/migrations"
+file_template = "%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s"
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

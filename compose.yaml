@@ -1,0 +1,55 @@
+x-embed: &embed
+  image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.4
+  profiles: [eval]
+  volumes:
+    - hf-models:/data
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: librarian
+      POSTGRES_PASSWORD: librarian
+      POSTGRES_DB: librarian
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U librarian -d librarian"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  docling:
+    image: quay.io/docling-project/docling-serve-cpu:v1.36.0
+    ports:
+      - "127.0.0.1:5001:5001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # Embedding losers stay commented out, so a rerun can bring them back.
+  # embed-minilm:
+  #   <<: *embed
+  #   command: --model-id sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+  #   ports:
+  #     - "127.0.0.1:8081:80"
+
+  # embed-e5:
+  #   <<: *embed
+  #   command: --model-id intfloat/multilingual-e5-base
+  #   ports:
+  #     - "127.0.0.1:8082:80"
+
+  embed-bgem3:
+    <<: *embed
+    command: --model-id BAAI/bge-m3 --max-batch-tokens 2048
+    ports:
+      - "127.0.0.1:8083:80"
+
+volumes:
+  pgdata:
+  hf-models:
