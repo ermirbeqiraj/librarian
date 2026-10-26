@@ -23,6 +23,9 @@ services:
 
   docling:
     image: quay.io/docling-project/docling-serve-cpu:v1.36.0
+    environment:
+      # A 21-page bill takes ~120s on CPU, the default limit; matches the reader's 300s timeout.
+      DOCLING_SERVE_MAX_SYNC_WAIT: 300
     ports:
       - "127.0.0.1:5001:5001"
     healthcheck:
