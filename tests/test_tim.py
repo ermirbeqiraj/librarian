@@ -47,6 +47,11 @@ def test_parses_fields() -> None:
     }
 
 
-def test_rejects_lines_that_dont_add_up() -> None:
-    with pytest.raises(ParseError, match="lines sum to 19.99, total is 20.00"):
-        Tim().parse(bill(COSTS.replace("| -5,00 |", "| -5,01 |")))
+def test_takes_total_even_when_lines_dont_add_up() -> None:
+    parsed = Tim().parse(bill(COSTS.replace("| -5,00 |", "| -5,00 Totale -5,00 |")))
+    assert parsed.fields["total_amount"] == Decimal("20.00")
+
+
+def test_rejects_bill_without_total() -> None:
+    with pytest.raises(ParseError, match="no Dettaglio dei costi"):
+        Tim().parse(bill(COSTS.replace("Totale da pagare", "Totale")))

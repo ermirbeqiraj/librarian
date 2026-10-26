@@ -24,7 +24,6 @@ NUMBER = re.compile(r"Numero fattura: (\S+)")
 ISSUED = re.compile(r"Data emissione: (\S+)")
 MONTH = re.compile(r"Fattura (\S+ \d{4})")
 TOTAL = "Totale da pagare"
-GROUP_HEADER = "IVA incl."
 
 
 class Tim:
@@ -36,7 +35,7 @@ class Tim:
         bill = PhoneBill(
             number=first_match(elements, NUMBER, "tim number")[1],
             issued_on=italian_date(first_match(elements, ISSUED, "tim issue date")[1]),
-            total_amount=_checked_total(_costs(elements)),
+            total_amount=_total(_costs(elements)),
         )
         validity = Range(first_day, last_day, bounds="[]")
         return Parsed(DocumentKind.invoice, validity, asdict(bill))
@@ -52,16 +51,8 @@ def _costs(elements: list[Element]) -> list[list[str]]:
     raise ParseError("tim: no Dettaglio dei costi")
 
 
-def _checked_total(rows: list[list[str]]) -> Decimal:
-    lines_sum = Decimal(0)
+def _total(rows: list[list[str]]) -> Decimal:
     for row in rows:
-        amount = row[-1]
         if TOTAL in row:
-            total = italian_decimal(amount)
-            if lines_sum != total:
-                raise ParseError(f"tim: lines sum to {lines_sum}, total is {total}")
-            return total
-        if amount == "" or amount == GROUP_HEADER or "Totale" in amount:
-            continue
-        lines_sum += italian_decimal(amount)
+            return italian_decimal(row[-1])
     raise ParseError(f"tim: no {TOTAL!r}")
