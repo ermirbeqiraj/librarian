@@ -1,6 +1,7 @@
 import re
 from dataclasses import asdict
 from decimal import Decimal
+from itertools import pairwise
 
 from sqlalchemy.dialects.postgresql import Range
 
@@ -24,6 +25,8 @@ NUMBER = re.compile(r"Numero fattura: (\S+)")
 ISSUED = re.compile(r"Data emissione: (\S+)")
 MONTH = re.compile(r"Fattura (\S+ \d{4})")
 TOTAL = "Totale da pagare"
+TOTAL_LABEL = re.compile(TOTAL)
+AMOUNT = re.compile(r"€ -?[\d.]+,\d{2}")
 
 
 class Tim:
@@ -35,7 +38,7 @@ class Tim:
         bill = PhoneBill(
             number=first_match(elements, NUMBER, "tim number")[1],
             issued_on=italian_date(first_match(elements, ISSUED, "tim issue date")[1]),
-            total_amount=_total(_costs(elements)),
+            total_amount=_total(elements),
         )
         validity = Range(first_day, last_day, bounds="[]")
         return Parsed(DocumentKind.invoice, validity, asdict(bill))
@@ -44,15 +47,22 @@ class Tim:
         return sections.from_docling(elements)
 
 
-def _costs(elements: list[Element]) -> list[list[str]]:
+def _total(elements: list[Element]) -> Decimal:
+    """From the cost table, else the amount under 'Totale da pagare', else the one after the
+    issue date: the portal's copy of a bill doesn't always keep the total in the table."""
     for e in elements:
         if e.kind == "table" and TOTAL in e.text:
-            return table_rows(e.text)
-    raise ParseError("tim: no Dettaglio dei costi")
-
-
-def _total(rows: list[list[str]]) -> Decimal:
-    for row in rows:
-        if TOTAL in row:
-            return italian_decimal(row[-1])
+            for row in table_rows(e.text):
+                if TOTAL in row:
+                    return italian_decimal(row[-1])
+    for label in (TOTAL_LABEL, ISSUED):
+        if amount := _amount_after(elements, label):
+            return italian_decimal(amount)
     raise ParseError(f"tim: no {TOTAL!r}")
+
+
+def _amount_after(elements: list[Element], label: re.Pattern[str]) -> str | None:
+    for before, e in pairwise(elements):
+        if label.fullmatch(before.text) and AMOUNT.fullmatch(e.text):
+            return e.text
+    return None

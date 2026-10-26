@@ -14,6 +14,7 @@ COSTS = (
     "| Altri importi | Periodo | IVA incl. |\n| Rata | | 5,00 |\n"
     "| | Totale da pagare | € 20,00 |"
 )
+NO_TOTAL = COSTS.replace("Totale da pagare", "Totale")
 
 
 def bill(costs: str = COSTS) -> list[Element]:
@@ -52,6 +53,20 @@ def test_takes_total_even_when_lines_dont_add_up() -> None:
     assert parsed.fields["total_amount"] == Decimal("20.00")
 
 
+def test_total_under_its_label_when_the_table_has_none() -> None:
+    elements = bill(NO_TOTAL) + [
+        Element(2, "section_header", "Totale da pagare", "body", False),
+        Element(2, "text", "€ 1.234,50", "body", False),
+    ]
+    assert Tim().parse(elements).fields["total_amount"] == Decimal("1234.50")
+
+
+def test_total_after_the_issue_date_when_nothing_else_has_it() -> None:
+    elements = bill(NO_TOTAL)
+    elements.insert(5, Element(1, "text", "€ 20,00", "body", False))
+    assert Tim().parse(elements).fields["total_amount"] == Decimal("20.00")
+
+
 def test_rejects_bill_without_total() -> None:
-    with pytest.raises(ParseError, match="no Dettaglio dei costi"):
-        Tim().parse(bill(COSTS.replace("Totale da pagare", "Totale")))
+    with pytest.raises(ParseError, match="no 'Totale da pagare'"):
+        Tim().parse(bill(NO_TOTAL))
