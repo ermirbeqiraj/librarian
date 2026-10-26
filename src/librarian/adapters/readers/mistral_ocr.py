@@ -4,6 +4,8 @@ from pathlib import Path
 
 import httpx
 
+from librarian.adapters.readers.document_bytes import document_bytes
+
 URL = "https://api.mistral.ai/v1/ocr"
 MODEL = "mistral-ocr-latest"
 
@@ -13,7 +15,7 @@ def read_text(pdf: Path) -> str:
 
 
 def read_pages(pdf: Path) -> list[str]:
-    encoded = base64.b64encode(pdf.read_bytes()).decode()
+    encoded = base64.b64encode(document_bytes(pdf)).decode()
     response = httpx.post(
         URL,
         headers={"Authorization": f"Bearer {os.environ['MISTRAL_API_KEY']}"},

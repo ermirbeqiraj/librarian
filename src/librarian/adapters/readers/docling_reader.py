@@ -7,6 +7,7 @@ from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.text import TextItem
 
+from librarian.adapters.readers.document_bytes import document_bytes
 from librarian.adapters.readers.element import Element
 from librarian.config import DOCLING_URL
 
@@ -15,12 +16,11 @@ atexit.register(client.close)
 
 
 def _convert(path: Path) -> DoclingDocument:
-    with path.open("rb") as pdf:
-        response = client.post(
-            "/v1/convert/file",
-            files={"files": (path.name, pdf, "application/pdf")},
-            data={"to_formats": "json", "do_ocr": "false"},
-        )
+    response = client.post(
+        "/v1/convert/file",
+        files={"files": (path.name, document_bytes(path), "application/pdf")},
+        data={"to_formats": "json", "do_ocr": "false"},
+    )
     response.raise_for_status()
     return DoclingDocument.model_validate(response.json()["document"]["json_content"])
 
