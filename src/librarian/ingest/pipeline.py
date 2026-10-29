@@ -28,6 +28,8 @@ from librarian.models import (
 
 SETTLE_SECONDS = 60
 OCR_UNDER_PAGES = 5
+# Kind, validity and the key fields sit up front; a 65-page booklet timed out the drafter.
+DRAFT_PAGES = 10
 
 
 def ingest_once() -> None:
@@ -54,6 +56,12 @@ def process(path: Path) -> None:
             ingestion.error = repr(error)
         repository.add(session, ingestion)
         session.flush()
+        if ingestion.status == IngestionStatus.duplicate:
+            # The row keeps the name and hash; the file goes only once the row is safe.
+            session.commit()
+            path.unlink()
+            print(f"{path.name}: ingestion {ingestion.id} duplicate, deleted")
+            return
         target = _destination(path, ingestion)
         ingestion.destination_path = str(target.relative_to(ROOT))
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -69,7 +77,7 @@ def process(path: Path) -> None:
 
 
 def _destination(path: Path, ingestion: Ingestion) -> Path:
-    """processed/{kind}/{id}.ext when read, quarantine/{id}.ext when duplicate or failed."""
+    """processed/{kind}/{id}.ext when read, quarantine/{id}.ext when failed."""
     name = f"{ingestion.id}{path.suffix.lower()}"
     if ingestion.document is None:
         return QUARANTINE_DIR / name
@@ -138,7 +146,7 @@ def _parsed(
 def _drafted(session: DbSession, path: Path, elements: list[Element], ingestion: Ingestion) -> None:
     reason = ocr_reason(elements)
     if reason is None:
-        text = document_text(elements)
+        text = document_text([e for e in elements if e.page <= DRAFT_PAGES])
         digest = content_hash(elements)
         sections = from_docling(elements)
     else:
@@ -147,8 +155,8 @@ def _drafted(session: DbSession, path: Path, elements: list[Element], ingestion:
             note = f"{ingestion.error}; {note}"
         ingestion.error = note
         pages = mistral_ocr.read_pages(path)
-        text = "\n\n".join(pages)
-        digest = text_hash(text)
+        digest = text_hash("\n\n".join(pages))
+        text = "\n\n".join(pages[:DRAFT_PAGES])
         sections = from_markdown(pages)
     if _duplicate(session, ingestion, digest):
         return

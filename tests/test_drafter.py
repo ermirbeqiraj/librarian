@@ -56,3 +56,11 @@ def test_raises_the_schema_error_after_the_retries() -> None:
     with pytest.raises(ValidationError, match="fields.0.value"):
         _ask(model([invalid(), invalid(), invalid()], asked), [("human", "page")], max_retries=2)
     assert len(asked) == 3
+
+
+def test_asks_again_when_the_answer_has_no_draft() -> None:
+    asked: list[list[tuple[str, str]]] = []
+    empty = {"raw": AIMessage(content=""), "parsed": None, "parsing_error": None}
+    assert _ask(model([empty, valid()], asked), [("human", "page")], max_retries=2) == DRAFT
+    assert len(asked) == 2
+    assert asked[1][2][0] == "human" and "no draft" in asked[1][2][1]

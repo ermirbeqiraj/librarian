@@ -72,7 +72,7 @@ def _ask(model: Runnable[Any, Any], messages: list[tuple[str, str]], max_retries
     asked = list(messages)
     result = model.invoke(asked)
     for _ in range(max_retries):
-        if result["parsing_error"] is None:
+        if result["parsing_error"] is None and isinstance(result["parsed"], Draft):
             break
         asked.append(("ai", _answer(result["raw"])))
         asked.append(("human", _invalid(result["parsing_error"])))
@@ -91,7 +91,9 @@ def _answer(raw: BaseMessage) -> str:
     return str(raw.content)
 
 
-def _invalid(error: BaseException) -> str:
+def _invalid(error: BaseException | None) -> str:
+    if error is None:
+        return "Your answer has no draft. Return the whole draft."
     return f"Your draft does not fit the schema:\n{error}\nFix it and return the whole draft again."
 
 
