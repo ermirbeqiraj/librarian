@@ -60,6 +60,10 @@ uv run --env-file .env librarian-ingest
 Drop PDFs in `LIBRARIAN_ROOT/inbox/`. `uv run librarian` checks the database
 connection.
 
+`uv run librarian-eval-retrieval` asks every case in `LIBRARIAN_ROOT/evals/retrieval/`
+and writes the scored run to `LIBRARIAN_ROOT/evals/retrieval/runs/`. It stops if a
+case's document isn't in the database.
+
 Checks: `uv run ruff check .` · `uv run ruff format .` · `uv run pyright` · `uv run pytest`.
 
 ### As a container
@@ -74,7 +78,7 @@ use `user:` in Compose if the library folder belongs to someone else.
 | Variable | Default | What |
 |---|---|---|
 | `MISTRAL_API_KEY` | none, required | Drafter and OCR |
-| `LIBRARIAN_ROOT` | `~/.local/share/librarian`, `/library` in the image | Holds `inbox/`, `processed/`, `quarantine/` |
+| `LIBRARIAN_ROOT` | `~/.local/share/librarian`, `/library` in the image | Holds `inbox/`, `processed/`, `quarantine/`, `evals/` |
 | `LIBRARIAN_DATABASE_URL` | `postgresql+psycopg://librarian:librarian@127.0.0.1:5432/librarian` | Postgres |
 | `LIBRARIAN_DOCLING_URL` | `http://127.0.0.1:5001` | docling-serve |
 | `LIBRARIAN_EMBEDDER_URL` | `http://127.0.0.1:8083` | Text Embeddings Inference running bge-m3 |
