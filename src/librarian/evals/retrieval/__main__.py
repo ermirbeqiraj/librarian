@@ -8,14 +8,14 @@ from typing import Any
 import simplejson
 from sqlalchemy import select
 
-from librarian.config import EVALS_DIR, LEARNINGS_DIR
+from librarian.config import EVALS_DIR
 from librarian.db import Session
 from librarian.evals.retrieval.runner import gold_paths, load_cases, run
 from librarian.models import Document, Ingestion
 from librarian.retrieve.retriever import Blank, Retriever
 
 CASES_DIR = EVALS_DIR / "retrieval"
-RUNS_DIR = LEARNINGS_DIR / "evals" / "retrieval"
+RUNS_DIR = CASES_DIR / "runs"
 RETRIEVERS: dict[str, type[Retriever]] = {"blank": Blank}
 
 
