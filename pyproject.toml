@@ -21,6 +21,7 @@ dependencies = [
 [project.scripts]
 librarian = "librarian.__main__:main"
 librarian-ingest = "librarian.ingest.__main__:main"
+librarian-eval-retrieval = "librarian.evals.retrieval.__main__:main"
 
 [build-system]
 requires = ["uv_build>=0.12.3,<0.13.0"]
