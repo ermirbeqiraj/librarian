@@ -22,6 +22,9 @@ TOTAL = re.compile(r"(.+) Euro")
 
 
 class IntesaTransfer:
+    issuer = "Intesa Sanpaolo S.p.A."
+    parser = "intesa_transfer"
+
     def is_this_yours(self, elements: list[Element]) -> Claim:
         if any(DONE.fullmatch(e.text) for e in elements):
             return Claim.full
@@ -42,7 +45,7 @@ class IntesaTransfer:
                 f"transfer: {transfer.amount} + {transfer.fee} is not {transfer.total_amount}"
             )
         validity = Range(executed_on, executed_on, bounds="[]")
-        return Parsed(DocumentKind.receipt, validity, asdict(transfer))
+        return Parsed(DocumentKind.receipt, validity, {**asdict(transfer), "issuer": self.issuer})
 
     def sections(self, elements: list[Element]) -> list[Section]:
         return sections.from_docling(elements)

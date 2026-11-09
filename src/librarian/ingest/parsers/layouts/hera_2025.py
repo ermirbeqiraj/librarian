@@ -63,6 +63,9 @@ SECTION_HEADINGS = {
 
 
 class Hera2025:
+    issuer = "Estenergy S.p.A."
+    parser = "hera_2025"
+
     def is_this_yours(self, elements: list[Element]) -> Claim:
         return claim(elements, PIVA, HEADINGS)
 
@@ -78,7 +81,7 @@ class Hera2025:
                 after(elements, "Consumo fatturato (Standard metri cubi)")
             ),
         )
-        return Parsed(DocumentKind.invoice, validity, asdict(bill))
+        return Parsed(DocumentKind.invoice, validity, {**asdict(bill), "issuer": self.issuer})
 
     def sections(self, elements: list[Element]) -> list[Section]:
         kept = with_notes_and_cover(_renamed(_with_table_headings(clean(elements))), COVER)

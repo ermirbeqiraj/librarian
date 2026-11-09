@@ -28,6 +28,12 @@ class Parsed:
 
 
 class Parser(Protocol):
+    issuer: str
+    """The issuer's name, written in the document's fields under the key 'issuer'."""
+
+    parser: str
+    """This layout's name, stored in documents.parser (e.g. 'tim')."""
+
     def is_this_yours(self, elements: list[Element]) -> Claim: ...
 
     def parse(self, elements: list[Element]) -> Parsed: ...

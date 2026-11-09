@@ -29,6 +29,9 @@ BILL_TOTAL = "Totale bolletta"
 
 
 class DufercoElectricity:
+    issuer = "Duferco Energia S.p.A."
+    parser = "duferco_electricity"
+
     def is_this_yours(self, elements: list[Element]) -> Claim:
         return claim(elements, PIVA, HEADINGS)
 
@@ -45,7 +48,7 @@ class DufercoElectricity:
             ),
         )
         validity = Range(first_day, last_day, bounds="[]")
-        return Parsed(DocumentKind.invoice, validity, asdict(bill))
+        return Parsed(DocumentKind.invoice, validity, {**asdict(bill), "issuer": self.issuer})
 
     def sections(self, elements: list[Element]) -> list[Section]:
         return sections.from_docling(elements)

@@ -56,6 +56,9 @@ class WaterBill:
 
 
 class CogeideWater:
+    issuer = "Cogeide S.p.A."
+    parser = "cogeide_water"
+
     def is_this_yours(self, elements: list[Element]) -> Claim:
         if not any(PIVA in e.text for e in elements):
             return Claim.no
@@ -75,7 +78,7 @@ class CogeideWater:
         )
         _check_sum(elements, bill.total_amount)
         validity = Range(italian_date(period[1]), italian_date(period[2]), bounds="[]")
-        return Parsed(DocumentKind.invoice, validity, asdict(bill))
+        return Parsed(DocumentKind.invoice, validity, {**asdict(bill), "issuer": self.issuer})
 
     def sections(self, elements: list[Element]) -> list[Section]:
         body = [e for e in elements if (e.layer == "body" or _is_heading(e)) and not e.in_picture]
