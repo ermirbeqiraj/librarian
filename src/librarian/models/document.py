@@ -2,7 +2,7 @@ from datetime import date, datetime
 from enum import StrEnum, auto
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Identity, Index, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Identity, Index, Text, func
 from sqlalchemy.dialects.postgresql import DATERANGE, JSONB, Range
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,6 +24,7 @@ class Document(Base):
     kind: Mapped[str]
     validity: Mapped[Range[date] | None] = mapped_column(DATERANGE)
     fields: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    parser: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None]
     problems: Mapped[list[dict[str, str]]] = mapped_column(JSONB)
     status: Mapped[DocumentStatus] = mapped_column(

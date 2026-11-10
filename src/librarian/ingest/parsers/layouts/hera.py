@@ -55,6 +55,9 @@ SECTION_HEADINGS = {
 
 
 class Hera:
+    issuer = "Hera S.p.A."
+    parser = "hera"
+
     def is_this_yours(self, elements: list[Element]) -> Claim:
         return claim(elements, PIVA, HEADINGS)
 
@@ -74,11 +77,12 @@ class Hera:
         service = after(elements, "Servizio fatturato:")
         if service == "Gas":
             bill = GasBill(number, issued_on, total, consumption)
-            return Parsed(DocumentKind.invoice, validity, asdict(bill))
-        if service == "Energia elettrica":
+        elif service == "Energia elettrica":
             bill = ElectricityBill(number, issued_on, total, consumption)
-            return Parsed(DocumentKind.invoice, validity, asdict(bill))
-        raise ParseError(f"hera: service {service!r} not handled")
+        else:
+            raise ParseError(f"hera: service {service!r} not handled")
+        fields = {**asdict(bill), "issuer": self.issuer}
+        return Parsed(DocumentKind.invoice, validity, fields)
 
     def sections(self, elements: list[Element]) -> list[Section]:
         kept = [e for e in clean(elements) if e.text != CHAPTER]

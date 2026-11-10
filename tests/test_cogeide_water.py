@@ -59,6 +59,7 @@ def test_parses_fields() -> None:
     assert parsed.validity is not None
     assert (parsed.validity.lower, parsed.validity.upper) == (date(2030, 1, 1), date(2030, 1, 31))
     assert parsed.fields == {
+        "issuer": "Cogeide S.p.A.",
         "number": "111",
         "issued_on": date(2030, 2, 5),
         "bill_type": "Bolletta di prova",

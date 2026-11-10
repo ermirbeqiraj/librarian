@@ -32,6 +32,7 @@ def test_parses_fields() -> None:
     assert parsed.validity is not None
     assert (parsed.validity.lower, parsed.validity.upper) == (date(2030, 10, 8), date(2030, 10, 8))
     assert parsed.fields == {
+        "issuer": "Intesa Sanpaolo S.p.A.",
         "number": "INTER111",
         "executed_on": date(2030, 10, 8),
         "beneficiary": "SCUOLA DI MUSICA",

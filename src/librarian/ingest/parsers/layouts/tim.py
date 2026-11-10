@@ -30,6 +30,9 @@ AMOUNT = re.compile(r"€ -?[\d.]+,\d{2}")
 
 
 class Tim:
+    issuer = "TIM S.p.A."
+    parser = "tim"
+
     def is_this_yours(self, elements: list[Element]) -> Claim:
         return claim(elements, PIVA, HEADINGS)
 
@@ -41,7 +44,7 @@ class Tim:
             total_amount=_total(elements),
         )
         validity = Range(first_day, last_day, bounds="[]")
-        return Parsed(DocumentKind.invoice, validity, asdict(bill))
+        return Parsed(DocumentKind.invoice, validity, {**asdict(bill), "issuer": self.issuer})
 
     def sections(self, elements: list[Element]) -> list[Section]:
         return sections.from_docling(elements)

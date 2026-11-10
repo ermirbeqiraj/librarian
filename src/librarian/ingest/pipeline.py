@@ -135,6 +135,7 @@ def _parsed(
         kind=parsed.kind,
         validity=parsed.validity,
         fields=parsed.fields,
+        parser=parser.parser,
         problems=[],
         status=DocumentStatus.confirmed,
     )
@@ -172,6 +173,7 @@ def _drafted(session: DbSession, path: Path, elements: list[Element], ingestion:
         kind=drafted.kind,
         validity=Range(drafted.validity.start, drafted.validity.end, bounds="[]"),
         fields=fields,
+        parser="drafter",
         description=drafted.description,
         problems=problems,
         status=DocumentStatus.draft,
