@@ -1,10 +1,11 @@
 """The agent's read-only SQL tool: run one query as `librarian_reader`, see the schema.
 
 The connection is set up once at startup from `LIBRARIAN_READER_DATABASE_URL` and speaks
-only as the `librarian_reader` role (see the migration that creates it): read-only, one
-5 s statement, SELECT on `documents` and `document_sections` only. A bad query fails at
-the database and comes back as an error the agent can read; the worst it can do is
-return wrong rows.
+only as the `librarian_reader` role (provisioned outside the app: by infra on a managed
+cluster, by the test setup in dev — no migration creates roles): read-only, one 5 s
+statement, SELECT on `documents` and `document_sections` only. A bad query fails at the
+database and comes back as an error the agent can read; the worst it can do is return
+wrong rows.
 """
 
 import atexit

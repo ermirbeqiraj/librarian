@@ -1,8 +1,9 @@
 """The SQL tool, against the `librarian_test` database (skipped when it is unreachable).
 
-The tool connects as `librarian_reader`, the role the migration creates with grants on
-`documents` and `document_sections` only, so these tests prove the borders at the
-database: writes fail, hidden tables are not readable, 5 s stops pg_sleep, 200 rows cap.
+The tool connects as `librarian_reader`, the read-only role the test setup creates with
+grants on `documents` and `document_sections` only (infra provisions it on the homeserver),
+so these tests prove the borders at the database: writes fail, hidden tables are not
+readable, 5 s stops pg_sleep, 200 rows cap.
 """
 
 import re
