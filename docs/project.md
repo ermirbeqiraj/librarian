@@ -80,6 +80,8 @@ use `user:` in Compose if the library folder belongs to someone else.
 | `MISTRAL_API_KEY` | none, required | Drafter and OCR |
 | `LIBRARIAN_ROOT` | `~/.local/share/librarian`, `/library` in the image | Holds `inbox/`, `processed/`, `quarantine/`, `evals/` |
 | `LIBRARIAN_DATABASE_URL` | `postgresql+psycopg://librarian:librarian@127.0.0.1:5432/librarian` | Postgres |
+| `LIBRARIAN_READER_PASSWORD` | `librarian_reader` (dev only) | Password of the read-only `librarian_reader` role the SQL tool connects as; set it on the homeserver |
+| `LIBRARIAN_READER_DATABASE_URL` | `LIBRARIAN_DATABASE_URL` as `librarian_reader` | The SQL tool's read-only connection |
 | `LIBRARIAN_DOCLING_URL` | `http://127.0.0.1:5001` | docling-serve |
 | `LIBRARIAN_EMBEDDER_URL` | `http://127.0.0.1:8083` | Text Embeddings Inference running bge-m3 |
 | `LIBRARIAN_POLL_SECONDS` | `10` | Seconds between inbox checks |
