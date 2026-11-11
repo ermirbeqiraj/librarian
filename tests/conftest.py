@@ -18,10 +18,12 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.dialects.postgresql import Range
+from sqlalchemy.engine import Engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session as DbSession
 
 import librarian.db
+from librarian.config import READER_PASSWORD
 from librarian.models import (
     Chunk,
     Document,
@@ -65,11 +67,47 @@ def test_db() -> None:
         "script_location", str(Path(librarian.db.__file__).parent / "migrations")
     )
     command.upgrade(config, "head")
+    _ensure_reader_role(admin, TEST_DATABASE_URL)
     yield
     librarian.db.engine.dispose()
     with admin.connect() as connection:
         connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
     admin.dispose()
+
+
+def _ensure_reader_role(admin: Engine, test_database_url: str) -> None:
+    """The dev cluster's bootstrap superuser creates the SQL tool's read-only role.
+
+    No app migration creates roles or logins anymore — a managed cluster's migration
+    role has no CREATEROLE — so on the homeserver the role comes from infra. In the
+    throwaway test database the test setup makes it, with the same borders.
+    """
+    password = READER_PASSWORD.replace("'", "''")
+    with admin.connect() as connection:
+        connection.execute(
+            text(
+                f"""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'librarian_reader') THEN
+                        CREATE ROLE librarian_reader LOGIN PASSWORD '{password}';
+                    ELSE
+                        ALTER ROLE librarian_reader PASSWORD '{password}';
+                    END IF;
+                END $$;
+                """
+            )
+        )
+        connection.execute(
+            text("ALTER ROLE librarian_reader SET default_transaction_read_only = on")
+        )
+        connection.execute(text("ALTER ROLE librarian_reader SET statement_timeout = '5s'"))
+    test_admin = create_engine(test_database_url, isolation_level="AUTOCOMMIT")
+    with test_admin.connect() as connection:
+        connection.execute(text("GRANT USAGE ON SCHEMA public TO librarian_reader"))
+        connection.execute(text("REVOKE ALL ON ALL TABLES IN SCHEMA public FROM librarian_reader"))
+        connection.execute(text("GRANT SELECT ON documents, document_sections TO librarian_reader"))
+    test_admin.dispose()
 
 
 @pytest.fixture

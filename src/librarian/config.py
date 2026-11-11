@@ -7,8 +7,9 @@ DATABASE_URL = os.environ.get(
     "LIBRARIAN_DATABASE_URL",
     "postgresql+psycopg://librarian:librarian@127.0.0.1:5432/librarian",
 )
-# The SQL tool's read-only role. The default password matches the compose dev database
-# (like librarian:librarian above); set LIBRARIAN_READER_PASSWORD on the homeserver.
+# The SQL tool's read-only role, provisioned outside the app (by infra on a managed
+# cluster, by the test setup in dev; no migration creates roles). The default password
+# matches the dev/test setup; set LIBRARIAN_READER_PASSWORD on the homeserver.
 READER_PASSWORD = os.environ.get("LIBRARIAN_READER_PASSWORD", "librarian_reader")
 READER_DATABASE_URL = os.environ.get("LIBRARIAN_READER_DATABASE_URL")
 if READER_DATABASE_URL is None:
