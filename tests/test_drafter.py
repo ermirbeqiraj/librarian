@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
 from pydantic import ValidationError
 
-from librarian.ingest.drafter.drafter import _ask  # pyright: ignore[reportPrivateUsage]
+from librarian.adapters.mistral import ask
 from librarian.ingest.drafter.schema import Draft, Validity
 from librarian.models.document_kind import DocumentKind
 
@@ -44,7 +44,7 @@ def model(answers: list[dict[str, Any]], asked: list[list[tuple[str, str]]]) -> 
 def test_asks_again_when_the_answer_does_not_fit_the_schema() -> None:
     asked: list[list[tuple[str, str]]] = []
     messages = [("human", "page")]
-    assert _ask(model([invalid(), valid()], asked), messages, max_retries=2) == DRAFT
+    assert ask(model([invalid(), valid()], asked), Draft, messages, max_retries=2) == DRAFT
     assert len(asked) == 2
     assert asked[1][1][0] == "ai" and '"value": null' in asked[1][1][1]
     assert asked[1][2][0] == "human" and "fields.0.value" in asked[1][2][1]
@@ -54,13 +54,18 @@ def test_asks_again_when_the_answer_does_not_fit_the_schema() -> None:
 def test_raises_the_schema_error_after_the_retries() -> None:
     asked: list[list[tuple[str, str]]] = []
     with pytest.raises(ValidationError, match="fields.0.value"):
-        _ask(model([invalid(), invalid(), invalid()], asked), [("human", "page")], max_retries=2)
+        ask(
+            model([invalid(), invalid(), invalid()], asked),
+            Draft,
+            [("human", "page")],
+            max_retries=2,
+        )
     assert len(asked) == 3
 
 
 def test_asks_again_when_the_answer_has_no_draft() -> None:
     asked: list[list[tuple[str, str]]] = []
     empty = {"raw": AIMessage(content=""), "parsed": None, "parsing_error": None}
-    assert _ask(model([empty, valid()], asked), [("human", "page")], max_retries=2) == DRAFT
+    assert ask(model([empty, valid()], asked), Draft, [("human", "page")], max_retries=2) == DRAFT
     assert len(asked) == 2
-    assert asked[1][2][0] == "human" and "no draft" in asked[1][2][1]
+    assert asked[1][2][0] == "human" and "no structured output" in asked[1][2][1]
