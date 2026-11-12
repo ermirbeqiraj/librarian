@@ -1,6 +1,6 @@
 """The Mistral chat client, shared by everyone who asks it for structured output: the
-drafter and the refine step. One model, and the retry while an answer doesn't fit the
-schema."""
+drafter and the refine step. The default model is the drafter's (refine pins its own), and
+the retry while an answer doesn't fit the schema."""
 
 import json
 from typing import Any
@@ -10,7 +10,7 @@ from langchain_core.runnables import Runnable
 from langchain_mistralai import ChatMistralAI
 from pydantic import BaseModel
 
-MODEL = "mistral-small-latest"
+MODEL = "mistral-small-2603"  # pinned: what mistral-small-latest pointed to on 2026-11-12
 MAX_RETRIES = 5
 
 
