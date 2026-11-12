@@ -92,6 +92,7 @@ def run(cases: list[Case], model_name: str = MODEL) -> dict[str, Any]:
                 "today": case.today.isoformat(),
                 "author": case.author,
                 "note": case.note,
+                "produced": refined.model_dump(by_alias=True, mode="json"),
                 "user_query": refined.user_query,
                 "query_count_ok": count,
                 "expected_count": len(case.queries),

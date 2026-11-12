@@ -20,18 +20,36 @@ def main() -> None:
         description="Refine every eval question and score the periods."
     )
     parser.add_argument("--model", default=MODEL)
+    parser.add_argument(
+        "filter",
+        nargs="?",
+        default=None,
+        help="run only the cases whose question contains this text (case-insensitive)",
+    )
     args = parser.parse_args()
 
     ran_at = datetime.now()
     cases = load_cases(CASES_DIR)
+    if args.filter is not None:
+        cases = [c for c in cases if args.filter.lower() in c.question.lower()]
+        if not cases:
+            raise SystemExit(f"no case matches {args.filter!r}")
     if not cases:
         raise SystemExit(f"no cases in {CASES_DIR / CASES_FILE}")
     outcome = run(cases, model_name=args.model)
+    for answer in outcome["answers"]:
+        print(answer["question"])
+        print(json.dumps(answer["produced"], indent=2, ensure_ascii=False))
     saved = save(
         ran_at,
         {
             "ran_at": ran_at.isoformat(timespec="seconds"),
-            "input": {"commit": commit(), "model": args.model, "cases": [CASES_FILE]},
+            "input": {
+                "commit": commit(),
+                "model": args.model,
+                "cases": [CASES_FILE],
+                "filter": args.filter,
+            },
             "result": outcome,
         },
     )

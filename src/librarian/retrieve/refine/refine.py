@@ -16,11 +16,16 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from librarian.adapters import mistral
 
-MODEL = mistral.MODEL
+# Medium, not small: with the same prompt (v3), small kept missing a few cases that are date
+# arithmetic, not rules: a month without a year put in last year, "l'estate scorsa" a year
+# too early, two months far apart merged into one period. Medium gets them all. Pinned to a
+# dated version (what mistral-medium-latest pointed to on 2026-11-12) so an alias update
+# can't move the score.
+MODEL = "mistral-medium-2604"
 MAX_RETRIES = mistral.MAX_RETRIES
 
 INSTRUCTIONS_DIR = Path(__file__).parent / "instructions"
-INSTRUCTIONS = "v1"
+INSTRUCTIONS = "v3"
 
 MESI = (
     "gennaio",
