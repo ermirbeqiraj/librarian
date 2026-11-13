@@ -4,7 +4,7 @@ from conftest import unit_vector
 from sqlalchemy.dialects.postgresql import Range
 
 from librarian.models import DocumentStatus
-from librarian.retrieve.search import TRIM_LIMIT, TRIM_MARKER, search
+from librarian.retrieve.search import TRIM_LIMIT, TRIM_MARKER, _term_pattern, search
 
 
 def test_unaccented_keyword_match(add_document) -> None:
@@ -154,3 +154,12 @@ def test_short_section_is_not_trimmed(add_document) -> None:
     hits = search("bolletta", mode="keyword")
     assert hits[0].text == "bolletta breve"
     assert TRIM_MARKER not in hits[0].text
+
+
+def test_empty_document_ids_find_nothing(add_document) -> None:
+    add_document(sections=[("Bolletta", "Bolletta del gas", [("Bolletta\nBolletta del gas", 0)])])
+    assert search("bolletta", mode="keyword", document_ids=[]) == []
+
+
+def test_trim_anchors_on_a_grave_o() -> None:
+    assert _term_pattern("pero").search("Il saldo però non scade") is not None
