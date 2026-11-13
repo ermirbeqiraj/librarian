@@ -20,9 +20,8 @@ $$ LANGUAGE SQL IMMUTABLE PARALLEL SAFE STRICT
 
 
 def upgrade() -> None:
-    # CREATE EXTENSION needs a superuser: the compose POSTGRES_USER is one. On a managed
-    # Postgres where the app role is not, the extension must be pre-created by the admin.
-    op.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
+    # The unaccent extension is not created here: extensions are the DBA's (dev compose
+    # creates it in dev/extensions.sql, the test setup in librarian_test).
     op.execute(UNACCENT_IMMUTABLE)
     op.add_column(
         "chunks",
@@ -43,4 +42,3 @@ def downgrade() -> None:
     op.drop_index("ix_chunks_search_text", table_name="chunks", postgresql_using="gin")
     op.drop_column("chunks", "search_text")
     op.execute("DROP FUNCTION IF EXISTS unaccent_immutable(text)")
-    op.execute("DROP EXTENSION IF EXISTS unaccent")

@@ -50,7 +50,7 @@ def unit_vector(index: int) -> list[float]:
 def test_db() -> None:
     """The compose Postgres with the schema migrated to head; skipped when unreachable."""
     name = make_url(TEST_DATABASE_URL).database or "librarian_test"
-    admin_url = str(make_url(TEST_DATABASE_URL).set(database="postgres"))
+    admin_url = make_url(TEST_DATABASE_URL).set(database="postgres")
     try:
         probe = create_engine(admin_url, connect_args={"connect_timeout": 3})
         with probe.connect() as connection:
@@ -62,6 +62,12 @@ def test_db() -> None:
     with admin.connect() as connection:
         connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         connection.execute(text(f'CREATE DATABASE "{name}"'))
+    # Extensions are the DBA's, not a migration's; here the compose superuser is the DBA.
+    test_admin = create_engine(TEST_DATABASE_URL, isolation_level="AUTOCOMMIT")
+    with test_admin.connect() as connection:
+        connection.execute(text("CREATE EXTENSION vector"))
+        connection.execute(text("CREATE EXTENSION unaccent"))
+    test_admin.dispose()
     config = Config()
     config.set_main_option(
         "script_location", str(Path(librarian.db.__file__).parent / "migrations")

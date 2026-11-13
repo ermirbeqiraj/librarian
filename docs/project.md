@@ -51,6 +51,10 @@ uv run alembic upgrade head
 Compose starts Postgres with pgvector, docling-serve and the embedder. The
 embedder sits behind the `eval` profile, and the pipeline needs it.
 
+Migrations create no roles and no extensions. Dev compose creates the `vector` and
+`unaccent` extensions on a fresh volume (`dev/extensions.sql`); on any other Postgres,
+a superuser creates both in the database before the first `alembic upgrade head`.
+
 ## Run
 
 ```
