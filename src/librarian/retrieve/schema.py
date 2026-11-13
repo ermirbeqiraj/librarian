@@ -21,12 +21,13 @@ _TABLES_SQL = """
 """
 
 # One row per key of `fields`: how many documents have it, the kinds they are, one
-# example value. Only the FIELD_KEY_LIMIT most used keys.
+# example value (from the newest document: jsonb has no min()). Only the FIELD_KEY_LIMIT
+# most used keys.
 _FIELDS_SQL = f"""
     SELECT key,
            count(*) AS document_count,
            array_agg(DISTINCT d.kind ORDER BY d.kind) AS kinds,
-           min(d.fields -> key) AS example
+           (array_agg(d.fields -> key ORDER BY d.id DESC))[1] AS example
     FROM documents d
     CROSS JOIN LATERAL jsonb_object_keys(d.fields) AS k(key)
     GROUP BY key

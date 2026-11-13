@@ -9,12 +9,14 @@ wrong rows.
 """
 
 import atexit
-from datetime import date, datetime, time
+import json
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, LiteralString, cast
 
 import psycopg
 from psycopg import sql
+from psycopg.types.json import set_json_loads
 from psycopg.types.range import Range
 from pydantic import BaseModel, ConfigDict
 
@@ -32,7 +34,13 @@ def reader_connection() -> psycopg.Connection:
     global _connection
     if _connection is None or _connection.closed:
         _connection = psycopg.connect(_CONNINFO)
+        # JSON numbers as Decimal, like the app's own engine: amounts stay exact.
+        set_json_loads(_loads_with_decimals, _connection)
     return _connection
+
+
+def _loads_with_decimals(data: str | bytes) -> Any:
+    return json.loads(data, parse_float=Decimal)
 
 
 def _close() -> None:
@@ -59,21 +67,26 @@ _ROW_RETURNING = {"SELECT", "WITH", "VALUES", "TABLE"}
 def run_sql(query: str) -> SqlResult:
     """Run one query as `librarian_reader`.
 
+    The role's read-only and 5 s settings are only defaults the session can change, so:
+    - one statement per call: it goes through a prepared statement, and Postgres refuses
+      to prepare more than one command ("SET statement_timeout = 0; SELECT ..." fails);
+    - every call is rolled back, never committed: a SET dies with its call and never
+      reaches the next one on this long-lived connection.
+
     Row-returning queries go through a server-side cursor and stop after MAX_ROWS + 1
     rows, so a runaway SELECT never reaches memory; more than MAX_ROWS rows comes back
     as the cap error. Anything else runs as written and fails at the database.
     """
     try:
         connection = reader_connection()
-        with connection.transaction():
+        with connection.transaction(force_rollback=True), connection.cursor() as cursor:
             if _returns_rows(query):
-                with connection.cursor(name="run_sql") as cursor:
-                    cursor.execute(raw_sql(query))
-                    result = _collect(cursor)
+                declare = "DECLARE run_sql NO SCROLL CURSOR FOR " + query
+                cursor.execute(raw_sql(declare), prepare=True)
+                cursor.execute(raw_sql(f"FETCH {MAX_ROWS + 1} FROM run_sql"))
             else:
-                with connection.cursor() as cursor:
-                    cursor.execute(raw_sql(query))
-                    result = _collect(cursor)
+                cursor.execute(raw_sql(query), prepare=True)
+            result = _collect(cursor)
     except Exception as error:  # noqa: BLE001 - the agent reads this, it is not a crash
         return SqlResult(error=_message(error))
     if len(result.rows) > MAX_ROWS:
@@ -120,12 +133,21 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, (datetime, date, time)):
         return value.isoformat()
     if isinstance(value, Range):
-        return {"start": _jsonable(value.lower), "end": _jsonable(value.upper)}
+        return {"start": _jsonable(value.lower), "end": _jsonable(_last_day(value))}
     if isinstance(value, (list, tuple)):
         return [_jsonable(item) for item in value]
     if isinstance(value, dict):
         return {key: _jsonable(item) for key, item in value.items()}
     return str(value)
+
+
+def _last_day(value: Range) -> Any:
+    """The range's inclusive end. Postgres stores a daterange as [start, end), so a
+    bill for March comes back with upper = 1 April; the agent reads 31 March."""
+    upper = value.upper
+    if isinstance(upper, date) and not isinstance(upper, datetime) and not value.upper_inc:
+        return upper - timedelta(days=1)
+    return upper
 
 
 EXAMPLES: list[str] = [
@@ -164,9 +186,10 @@ What you can see (call schema() for the columns and the most used `fields` keys)
 - document_sections(id, document_id, position, heading, text, created_at)
 
 `fields` is a JSON object: its keys are not columns. Read a value with fields ->> 'key',
-test for a key with fields ? 'key'. `validity` is a date range: lower(validity) and
-upper(validity) are its bounds, and validity && daterange('2025-01-01', '2026-01-01')
-matches the year 2025.
+test for a key with fields ? 'key'. `validity` is a date range stored as [start, end):
+lower(validity) is the first day, upper(validity) the day after the last one. In the
+rows it comes back as {{start, end}} with end the last day. validity &&
+daterange('2025-01-01', '2026-01-01') matches the year 2025.
 
 Limits: the connection is read-only, writes fail at the database; each statement stops
 after 5 seconds; a query returning more than 200 rows is an error, aggregate in SQL or

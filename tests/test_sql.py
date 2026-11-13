@@ -52,6 +52,36 @@ def test_writes_fail_at_the_database(test_db: None, query: str) -> None:
     assert result.columns == []
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        "SET statement_timeout = 0; SELECT pg_sleep(6)",
+        "SELECT 1; SET statement_timeout = 0; SELECT pg_sleep(6)",
+        "SET TRANSACTION READ WRITE; CREATE TEMP TABLE t AS SELECT 1 AS x",
+    ],
+)
+def test_more_than_one_statement_is_refused(test_db: None, query: str) -> None:
+    started = time.monotonic()
+    result = run_sql(query)
+    assert result.error is not None
+    assert time.monotonic() - started < 2
+
+
+def test_a_set_does_not_outlive_its_call(test_db: None) -> None:
+    assert run_sql("SET statement_timeout = 0").error is None
+    started = time.monotonic()
+    result = run_sql("SELECT pg_sleep(10)")
+    assert result.error is not None
+    assert "statement timeout" in result.error
+    assert time.monotonic() - started < 7
+
+
+def test_a_trailing_semicolon_is_fine(test_db: None) -> None:
+    result = run_sql("SELECT 1 AS one;")
+    assert result.error is None
+    assert result.rows == [{"one": 1}]
+
+
 @pytest.mark.parametrize("query", ["SELECT * FROM ingestions", "SELECT * FROM chunks"])
 def test_ingestions_and_chunks_cannot_be_read(test_db: None, query: str) -> None:
     result = run_sql(query)
@@ -120,7 +150,7 @@ def test_schema_lists_field_keys_with_count_kinds_and_example(
 ) -> None:
     add_document(
         kind="invoice",
-        fields={"issuer": "Hera S.p.A.", "service": "gas", "total_amount": "63.33"},
+        fields={"issuer": "Hera S.p.A.", "service": "gas", "total_amount": Decimal("63.33")},
     )
     add_document(kind="invoice", fields={"issuer": "Cogeide S.p.A.", "service": "water"})
     add_document(kind="contract", fields={"issuer": "Controparte S.p.A."})
@@ -132,7 +162,7 @@ def test_schema_lists_field_keys_with_count_kinds_and_example(
     assert keys["service"].kinds == ["invoice"]
     assert keys["service"].example in {"gas", "water"}
     assert keys["total_amount"].document_count == 1
-    assert keys["total_amount"].example == 63.33
+    assert keys["total_amount"].example == Decimal("63.33")
 
 
 def test_schema_returns_only_the_top_100_field_keys(add_document, fresh_schema: None) -> None:
