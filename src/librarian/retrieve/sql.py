@@ -10,6 +10,7 @@ wrong rows.
 
 import atexit
 import json
+import threading
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, LiteralString, cast
@@ -24,6 +25,11 @@ from librarian.config import READER_DATABASE_URL
 
 MAX_ROWS = 200
 TOO_MANY_ROWS = "too many rows: aggregate in SQL or add a LIMIT"
+# Our own clock, outside the session: the role's 5 s statement_timeout is a default the
+# agent's SQL can switch off (set_config), this one it can't. A bit later than 5 s, so
+# the database's own timeout normally fires first.
+CANCEL_SECONDS = 8
+CANCELLED = f"stopped after {CANCEL_SECONDS} s: make the query cheaper"
 
 _CONNINFO = READER_DATABASE_URL.replace("+psycopg", "")
 _connection: psycopg.Connection | None = None
@@ -71,14 +77,24 @@ def run_sql(query: str) -> SqlResult:
     - one statement per call: it goes through a prepared statement, and Postgres refuses
       to prepare more than one command ("SET statement_timeout = 0; SELECT ..." fails);
     - every call is rolled back, never committed: a SET dies with its call and never
-      reaches the next one on this long-lived connection.
+      reaches the next one on this long-lived connection;
+    - our code cancels the query after CANCEL_SECONDS, whatever the session has set.
 
     Row-returning queries go through a server-side cursor and stop after MAX_ROWS + 1
     rows, so a runaway SELECT never reaches memory; more than MAX_ROWS rows comes back
     as the cap error. Anything else runs as written and fails at the database.
     """
+    timer: threading.Timer | None = None
+    cancelled = threading.Event()
     try:
         connection = reader_connection()
+
+        def cancel() -> None:
+            cancelled.set()
+            connection.cancel_safe()
+
+        timer = threading.Timer(CANCEL_SECONDS, cancel)
+        timer.start()
         with connection.transaction(force_rollback=True), connection.cursor() as cursor:
             if _returns_rows(query):
                 declare = "DECLARE run_sql NO SCROLL CURSOR FOR " + query
@@ -88,7 +104,14 @@ def run_sql(query: str) -> SqlResult:
                 cursor.execute(raw_sql(query), prepare=True)
             result = _collect(cursor)
     except Exception as error:  # noqa: BLE001 - the agent reads this, it is not a crash
+        if cancelled.is_set():
+            return SqlResult(error=CANCELLED)
         return SqlResult(error=_message(error))
+    finally:
+        # Stop the timer and wait for it, so a late cancel can't hit the next call.
+        if timer is not None:
+            timer.cancel()
+            timer.join()
     if len(result.rows) > MAX_ROWS:
         return SqlResult(error=TOO_MANY_ROWS)
     return result

@@ -16,7 +16,15 @@ from sqlalchemy.dialects.postgresql import Range
 
 import librarian.retrieve.schema as schema_module
 from librarian.retrieve.schema import schema
-from librarian.retrieve.sql import MAX_ROWS, SQL_TOOL_DESCRIPTION, TOO_MANY_ROWS, run_sql
+from librarian.retrieve.sql import (
+    CANCEL_SECONDS,
+    CANCELLED,
+    MAX_ROWS,
+    SQL_TOOL_DESCRIPTION,
+    TOO_MANY_ROWS,
+    reader_connection,
+    run_sql,
+)
 
 
 @pytest.fixture
@@ -74,6 +82,28 @@ def test_a_set_does_not_outlive_its_call(test_db: None) -> None:
     assert result.error is not None
     assert "statement timeout" in result.error
     assert time.monotonic() - started < 7
+
+
+def test_set_config_in_the_query_does_not_lift_the_timeout(test_db: None) -> None:
+    result = run_sql("SELECT set_config('statement_timeout', '0', false), pg_sleep(10)")
+    assert result.error is not None
+    assert "statement timeout" in result.error
+
+
+def test_our_clock_stops_a_query_when_the_role_has_no_timeout(test_db: None) -> None:
+    # A role provisioned without statement_timeout: only our clock is left.
+    connection = reader_connection()
+    connection.execute("SET statement_timeout = 0")
+    connection.commit()
+    started = time.monotonic()
+    result = run_sql("SELECT pg_sleep(30)")
+    elapsed = time.monotonic() - started
+    connection.execute("RESET statement_timeout")
+    connection.commit()
+    assert result.error == CANCELLED
+    assert CANCEL_SECONDS <= elapsed < CANCEL_SECONDS + 3
+    # The connection is still good for the next call.
+    assert run_sql("SELECT 1 AS one").rows == [{"one": 1}]
 
 
 def test_a_trailing_semicolon_is_fine(test_db: None) -> None:
