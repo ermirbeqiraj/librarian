@@ -14,9 +14,9 @@ READER_PASSWORD = os.environ.get("LIBRARIAN_READER_PASSWORD", "librarian_reader"
 READER_DATABASE_URL = os.environ.get("LIBRARIAN_READER_DATABASE_URL")
 if READER_DATABASE_URL is None:
     # Same database as DATABASE_URL, but as librarian_reader.
-    READER_DATABASE_URL = str(
-        make_url(DATABASE_URL).set(username="librarian_reader", password=READER_PASSWORD)
-    )
+    # render_as_string, not str(): str() masks the password as ***.
+    reader_url = make_url(DATABASE_URL).set(username="librarian_reader", password=READER_PASSWORD)
+    READER_DATABASE_URL = reader_url.render_as_string(hide_password=False)
 # One root holds inbox/, quarantine/, processed/ and evals/. Dev keeps it out of Dropbox,
 # so wiping Postgres and this folder resets everything.
 ROOT = Path(os.environ.get("LIBRARIAN_ROOT", Path.home() / ".local/share/librarian"))
