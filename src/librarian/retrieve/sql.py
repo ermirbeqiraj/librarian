@@ -67,9 +67,6 @@ class SqlResult(BaseModel):
     error: str | None = None
 
 
-_ROW_RETURNING = {"SELECT", "WITH", "VALUES", "TABLE"}
-
-
 def run_sql(query: str) -> SqlResult:
     """Run one query as `librarian_reader`.
 
@@ -80,9 +77,10 @@ def run_sql(query: str) -> SqlResult:
       reaches the next one on this long-lived connection;
     - our code cancels the query after CANCEL_SECONDS, whatever the session has set.
 
-    Row-returning queries go through a server-side cursor and stop after MAX_ROWS + 1
-    rows, so a runaway SELECT never reaches memory; more than MAX_ROWS rows comes back
-    as the cap error. Anything else runs as written and fails at the database.
+    Every query goes through a server-side cursor and only MAX_ROWS + 1 rows cross the
+    wire, so a runaway SELECT never reaches memory; more than MAX_ROWS rows comes back as
+    the cap error. No guessing from the first word ("/* */ SELECT" fooled that): what a
+    cursor can't hold (writes, SET, SHOW, EXPLAIN) fails at the database.
     """
     timer: threading.Timer | None = None
     cancelled = threading.Event()
@@ -96,12 +94,9 @@ def run_sql(query: str) -> SqlResult:
         timer = threading.Timer(CANCEL_SECONDS, cancel)
         timer.start()
         with connection.transaction(force_rollback=True), connection.cursor() as cursor:
-            if _returns_rows(query):
-                declare = "DECLARE run_sql NO SCROLL CURSOR FOR " + query
-                cursor.execute(raw_sql(declare), prepare=True)
-                cursor.execute(raw_sql(f"FETCH {MAX_ROWS + 1} FROM run_sql"))
-            else:
-                cursor.execute(raw_sql(query), prepare=True)
+            declare = "DECLARE run_sql NO SCROLL CURSOR FOR " + query
+            cursor.execute(raw_sql(declare), prepare=True)
+            cursor.execute(raw_sql(f"FETCH {MAX_ROWS + 1} FROM run_sql"))
             result = _collect(cursor)
     except Exception as error:  # noqa: BLE001 - the agent reads this, it is not a crash
         if cancelled.is_set():
@@ -121,14 +116,6 @@ def raw_sql(query: str) -> sql.SQL:
     """The agent's SQL goes in raw; psycopg types want a literal, the reader role is
     the guard, not the type."""
     return sql.SQL(cast(LiteralString, query))
-
-
-def _returns_rows(query: str) -> bool:
-    text = query.strip()
-    while text.startswith("("):
-        text = text[1:].lstrip()
-    word = text.split(None, 1)[0].upper() if text else ""
-    return word in _ROW_RETURNING
 
 
 def _collect(cursor: psycopg.Cursor[Any]) -> SqlResult:
@@ -213,6 +200,9 @@ test for a key with fields ? 'key'. `validity` is a date range stored as [start,
 lower(validity) is the first day, upper(validity) the day after the last one. In the
 rows it comes back as {{start, end}} with end the last day. validity &&
 daterange('2025-01-01', '2026-01-01') matches the year 2025.
+
+Only a query runs: SELECT, WITH ... SELECT, VALUES or TABLE. Writes, SET, SHOW and
+EXPLAIN fail at the database.
 
 Limits: the connection is read-only, writes fail at the database; each statement stops
 after 5 seconds; a query returning more than 200 rows is an error, aggregate in SQL or

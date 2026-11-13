@@ -7,6 +7,7 @@ readable, 5 s stops pg_sleep, 200 rows cap.
 """
 
 import re
+import resource
 import time
 from datetime import date
 from decimal import Decimal
@@ -75,8 +76,8 @@ def test_more_than_one_statement_is_refused(test_db: None, query: str) -> None:
     assert time.monotonic() - started < 2
 
 
-def test_a_set_does_not_outlive_its_call(test_db: None) -> None:
-    assert run_sql("SET statement_timeout = 0").error is None
+def test_a_set_is_refused_and_the_timeout_holds(test_db: None) -> None:
+    assert run_sql("SET statement_timeout = 0").error is not None
     started = time.monotonic()
     result = run_sql("SELECT pg_sleep(10)")
     assert result.error is not None
@@ -237,3 +238,26 @@ def test_every_example_in_the_tool_description_runs_and_returns_rows(add_documen
         result = run_sql(example)
         assert result.error is None, example
         assert result.rows, example
+
+
+def _peak_rss_kb() -> int:
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+
+
+@pytest.mark.parametrize("prefix", ["", "/* */ ", "-- note\n", "(", "\n\n  "])
+def test_only_the_capped_rows_reach_memory(test_db: None, prefix: str) -> None:
+    # ~200 MB of rows from built-in functions only. The first-word check used to send
+    # "/* */ SELECT" past the cursor, and libpq buffered all of it before the cap.
+    query = prefix + "SELECT repeat('x', 1000) AS payload FROM generate_series(1, 200000)"
+    if prefix == "(":
+        query += ")"
+    before = _peak_rss_kb()
+    result = run_sql(query)
+    added_mb = (_peak_rss_kb() - before) / 1024
+    assert result.error == TOO_MANY_ROWS
+    assert added_mb < 50, f"{added_mb:.0f} MB buffered before the row cap"
+
+
+def test_commented_select_still_runs(test_db: None) -> None:
+    assert run_sql("/* why */ SELECT 1 AS one").rows == [{"one": 1}]
+    assert run_sql("-- why\nSELECT 1 AS one").rows == [{"one": 1}]
