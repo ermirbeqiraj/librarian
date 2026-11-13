@@ -261,3 +261,24 @@ def test_only_the_capped_rows_reach_memory(test_db: None, prefix: str) -> None:
 def test_commented_select_still_runs(test_db: None) -> None:
     assert run_sql("/* why */ SELECT 1 AS one").rows == [{"one": 1}]
     assert run_sql("-- why\nSELECT 1 AS one").rows == [{"one": 1}]
+
+
+def test_order_by_inside_survives_the_wrap(test_db: None) -> None:
+    result = run_sql("SELECT g FROM generate_series(1, 150) g ORDER BY g DESC")
+    values = [row["g"] for row in result.rows]
+    assert values == list(range(150, 0, -1))
+
+
+def test_trailing_comment_and_semicolons_are_fine(test_db: None) -> None:
+    assert run_sql("SELECT 1 AS one -- the count\n").rows == [{"one": 1}]
+    assert run_sql("SELECT 1 AS one ;; ").rows == [{"one": 1}]
+
+
+def test_repeated_column_names_ask_for_an_alias(add_document) -> None:
+    add_document(sections=[("Bolletta", "Testo", [("Bolletta\nTesto", 0)])])
+    join = "FROM documents d JOIN document_sections s ON s.document_id = d.id"
+    result = run_sql("SELECT d.id, s.id " + join)
+    assert result.error == "two columns are named 'id': name them apart with AS"
+    result = run_sql("SELECT d.id AS document_id, s.id AS section_id " + join)
+    assert result.error is None
+    assert set(result.rows[0]) == {"document_id", "section_id"}

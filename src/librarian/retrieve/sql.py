@@ -77,10 +77,11 @@ def run_sql(query: str) -> SqlResult:
       reaches the next one on this long-lived connection;
     - our code cancels the query after CANCEL_SECONDS, whatever the session has set.
 
-    Every query goes through a server-side cursor and only MAX_ROWS + 1 rows cross the
-    wire, so a runaway SELECT never reaches memory; more than MAX_ROWS rows comes back as
-    the cap error. No guessing from the first word ("/* */ SELECT" fooled that): what a
-    cursor can't hold (writes, SET, SHOW, EXPLAIN) fails at the database.
+    Every query is wrapped as `SELECT * FROM (<query>) AS q LIMIT MAX_ROWS + 1`, so
+    Postgres itself stops at the cap and a runaway SELECT never reaches memory (libpq
+    buffers a whole result); more than MAX_ROWS rows comes back as the cap error. No
+    guessing from the first word ("/* */ SELECT" fooled that): what can't be a subquery
+    (writes, SET, SHOW, EXPLAIN) fails at the database.
     """
     timer: threading.Timer | None = None
     cancelled = threading.Event()
@@ -94,9 +95,7 @@ def run_sql(query: str) -> SqlResult:
         timer = threading.Timer(CANCEL_SECONDS, cancel)
         timer.start()
         with connection.transaction(force_rollback=True), connection.cursor() as cursor:
-            declare = "DECLARE run_sql NO SCROLL CURSOR FOR " + query
-            cursor.execute(raw_sql(declare), prepare=True)
-            cursor.execute(raw_sql(f"FETCH {MAX_ROWS + 1} FROM run_sql"))
+            cursor.execute(raw_sql(wrapped(query)), prepare=True)
             result = _collect(cursor)
     except Exception as error:  # noqa: BLE001 - the agent reads this, it is not a crash
         if cancelled.is_set():
@@ -112,6 +111,16 @@ def run_sql(query: str) -> SqlResult:
     return result
 
 
+def wrapped(query: str) -> str:
+    """The agent's query as a subquery capped at MAX_ROWS + 1 rows. Trailing semicolons
+    go (they can't sit inside the parentheses); the closing parenthesis gets its own line,
+    so a trailing `-- comment` can't swallow it."""
+    body = query.strip()
+    while body.endswith(";"):
+        body = body[:-1].rstrip()
+    return f"SELECT * FROM (\n{body}\n) AS q LIMIT {MAX_ROWS + 1}"
+
+
 def raw_sql(query: str) -> sql.SQL:
     """The agent's SQL goes in raw; psycopg types want a literal, the reader role is
     the guard, not the type."""
@@ -122,6 +131,12 @@ def _collect(cursor: psycopg.Cursor[Any]) -> SqlResult:
     if cursor.description is None:
         return SqlResult()
     columns = [column.name for column in cursor.description]
+    # Rows are dicts by column name: a repeated name would silently drop a value.
+    seen: set[str] = set()
+    for name in columns:
+        if name in seen:
+            return SqlResult(error=f"two columns are named {name!r}: name them apart with AS")
+        seen.add(name)
     rows = [
         {name: _jsonable(value) for name, value in zip(columns, row, strict=True)}
         for row in cursor.fetchmany(MAX_ROWS + 1)
