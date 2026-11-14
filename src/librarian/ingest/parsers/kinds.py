@@ -27,13 +27,3 @@ class PhoneBill:
     issued_on: date
     total_amount: Decimal
     service: str = "phone"
-
-
-@dataclass(frozen=True)
-class BankTransfer:
-    number: str
-    executed_on: date
-    beneficiary: str
-    amount: Decimal
-    fee: Decimal
-    total_amount: Decimal

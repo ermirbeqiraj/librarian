@@ -1,10 +1,10 @@
 import re
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from librarian.retrieve.result import Passage, Value
 
-# Each way a unit is written, as (base unit, factor to the base): 167000 litri = 167 mc.
+# Each way a unit is written, as (base unit, factor to the base): 152000 litri = 152 mc.
 UNITS = {
     "€": ("EUR", Decimal(1)),
     "eur": ("EUR", Decimal(1)),
@@ -20,7 +20,6 @@ UNITS = {
     "kwh": ("kWh", Decimal(1)),
 }
 AMOUNT = re.compile(r"(€)?\s*(-?[\d.,]+)\s*(\S*)")
-DATE_FORMATS = ["%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y", "%d-%m-%Y"]
 
 
 def contains_quote(quote: str, passages: list[Passage]) -> bool:
@@ -45,7 +44,14 @@ def same_value(expected: Decimal | str, unit: str | None, got: Value) -> bool:
     amount = parse_amount(got)
     if amount is None:
         return False
-    number, got_unit = amount
+    numbers, got_unit = amount
+    for number in numbers:
+        if same_amount(expected, unit, number, got_unit):
+            return True
+    return False
+
+
+def same_amount(expected: Decimal, unit: str | None, number: Decimal, got_unit: str | None) -> bool:
     # A bare number is taken in the expected unit: 63.33 = 63.33 EUR.
     if unit is None or got_unit is None:
         return number == expected
@@ -56,36 +62,46 @@ def same_value(expected: Decimal | str, unit: str | None, got: Value) -> bool:
     return base == got_base and number * got_factor == expected * factor
 
 
-def parse_amount(value: Value) -> tuple[Decimal, str | None] | None:
+def parse_amount(value: Value) -> tuple[list[Decimal], str | None] | None:
     if isinstance(value.value, Decimal):
-        return value.value, value.unit
+        return [value.value], value.unit
 
     match = AMOUNT.fullmatch(value.value.strip())
     if match is None:
         return None
-    number = parse_number(match.group(2))
-    if number is None:
+    numbers = parse_numbers(match.group(2))
+    if not numbers:
         return None
     unit = match.group(1) or match.group(3) or value.unit
-    return number, unit
+    return numbers, unit
 
 
-def parse_number(text: str) -> Decimal | None:
-    """Reads Italian and English writing alike: 1.904,02 and 1,904.02 are both 1904.02."""
+def parse_numbers(text: str) -> list[Decimal]:
+    """Every way the number can be read. Italian and English writing alike: 1.876,35 and
+    1,876.35 are both 1876.35. One dot with three digits after can be either: 318.746 kWh is
+    a decimal, 152.000 litri is thousands, so both readings come back."""
+    readings: list[str] = []
     if "," in text and "." in text:
         if text.rfind(",") > text.rfind("."):
-            text = text.replace(".", "").replace(",", ".")
+            readings.append(text.replace(".", "").replace(",", "."))
         else:
-            text = text.replace(",", "")
+            readings.append(text.replace(",", ""))
     elif "," in text:
-        text = text.replace(",", ".")
-    elif text.count(".") > 1 or re.fullmatch(r"-?\d{1,3}\.\d{3}", text):
-        # Dots alone with three digits after are thousands: 167.000 litri.
-        text = text.replace(".", "")
-    try:
-        return Decimal(text)
-    except InvalidOperation:
-        return None
+        readings.append(text.replace(",", "."))
+    elif text.count(".") > 1:
+        readings.append(text.replace(".", ""))
+    elif re.fullmatch(r"-?\d{1,3}\.\d{3}", text):
+        readings.append(text.replace(".", ""))
+        readings.append(text)
+    else:
+        readings.append(text)
+    numbers: list[Decimal] = []
+    for reading in readings:
+        try:
+            numbers.append(Decimal(reading))
+        except InvalidOperation:
+            pass
+    return numbers
 
 
 def same_text(expected: str, got: Decimal | str) -> bool:
@@ -98,12 +114,12 @@ def same_text(expected: str, got: Decimal | str) -> bool:
 
 
 def parse_date(text: str) -> date | None:
-    for date_format in DATE_FORMATS:
-        try:
-            return datetime.strptime(text.strip(), date_format).date()
-        except ValueError:
-            pass
-    return None
+    """Dates are ISO, by rule (the dig instructions): any other writing is a miss, the model
+    didn't follow it."""
+    try:
+        return date.fromisoformat(text.strip())
+    except ValueError:
+        return None
 
 
 def squeeze(text: str) -> str:

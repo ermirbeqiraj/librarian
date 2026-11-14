@@ -21,7 +21,6 @@ class Base(DeclarativeBase):
 
 engine = create_engine(
     DATABASE_URL,
-    echo=True,
     json_serializer=lambda o: simplejson.dumps(
         o, use_decimal=True, default=lambda d: d.isoformat()
     ),

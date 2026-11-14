@@ -24,6 +24,9 @@ INBOX_DIR = ROOT / "inbox"
 QUARANTINE_DIR = ROOT / "quarantine"
 PROCESSED_DIR = ROOT / "processed"
 EVALS_DIR = ROOT / "evals"
+ASKS_DIR = ROOT / "asks"
+# Who the people, homes and things in the documents are; written by hand, never in the repo.
+CONTEXT_FILE = ROOT / "context.md"
 POLL_SECONDS = int(os.environ.get("LIBRARIAN_POLL_SECONDS", "10"))
 DOCLING_URL = os.environ.get("LIBRARIAN_DOCLING_URL", "http://127.0.0.1:5001")
 EMBEDDER_URL = os.environ.get("LIBRARIAN_EMBEDDER_URL", "http://127.0.0.1:8083")

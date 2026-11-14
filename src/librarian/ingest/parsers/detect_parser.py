@@ -3,7 +3,6 @@ from librarian.ingest.parsers.layouts.cogeide_water import CogeideWater
 from librarian.ingest.parsers.layouts.duferco_electricity import DufercoElectricity
 from librarian.ingest.parsers.layouts.hera import Hera
 from librarian.ingest.parsers.layouts.hera_2025 import Hera2025
-from librarian.ingest.parsers.layouts.intesa_transfer import IntesaTransfer
 from librarian.ingest.parsers.layouts.tim import Tim
 from librarian.ingest.parsers.parser import Claim, ParseError, Parser
 
@@ -13,7 +12,6 @@ PARSERS: list[Parser] = [
     Hera2025(),
     DufercoElectricity(),
     Tim(),
-    IntesaTransfer(),
 ]
 
 

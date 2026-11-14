@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from librarian.evals.retrieval.matching import contains_quote, parse_number, same_value
+from librarian.evals.retrieval.matching import contains_quote, parse_numbers, same_value
 from librarian.retrieve.result import Passage, Value
 
 
@@ -22,9 +22,17 @@ def test_amount_must_be_equal() -> None:
 
 
 def test_thousands_separators() -> None:
-    assert parse_number("2.315,40") == Decimal("2315.40")
-    assert parse_number("2,315.40") == Decimal("2315.40")
-    assert parse_number("98.000") == Decimal(98000)
+    assert parse_numbers("2.315,40") == [Decimal("2315.40")]
+    assert parse_numbers("2,315.40") == [Decimal("2315.40")]
+    assert parse_numbers("1.876.350") == [Decimal(1876350)]
+
+
+def test_one_dot_three_digits_read_both_ways() -> None:
+    assert parse_numbers("98.000") == [Decimal(98000), Decimal("98.000")]
+    assert same_value(Decimal("318.746"), "kWh", value("318.746"))
+    assert same_value(Decimal("318.746"), "kWh", value("318.746 kWh"))
+    assert same_value(Decimal(318746), "kWh", value("318.746"))
+    assert not same_value(Decimal("318.747"), "kWh", value("318.746"))
 
 
 def test_units_converted_first() -> None:
@@ -37,10 +45,10 @@ def test_other_unit_is_a_miss() -> None:
     assert not same_value(Decimal(98), "mc", value("98 kWh"))
 
 
-def test_dates_compared_as_iso() -> None:
-    assert same_value("2031-03-09", None, value("09/03/2031"))
+def test_dates_only_as_iso() -> None:
     assert same_value("2031-03-09", None, value("2031-03-09"))
-    assert not same_value("2031-03-09", None, value("03/09/2031"))
+    assert not same_value("2031-03-09", None, value("09/03/2031"))
+    assert not same_value("2031-03-09", None, value("9 marzo 2031"))
 
 
 def test_codes_ignore_spacing() -> None:

@@ -64,9 +64,19 @@ uv run --env-file .env librarian-ingest
 Drop PDFs in `LIBRARIAN_ROOT/inbox/`. `uv run librarian` checks the database
 connection.
 
-`uv run librarian-eval-retrieval` asks every case in `LIBRARIAN_ROOT/evals/retrieval/`
-and writes the scored run to `LIBRARIAN_ROOT/evals/retrieval/runs/`. It stops if a
-case's document isn't in the database.
+`uv run --env-file .env librarian-ask --model <model> "qnd scade la bolletta"` asks one question
+and prints everything it went through as JSON: the refined queries, every round (what the
+model thought and the tools it called), the result. There is no default model. Every
+run, from the command or the eval, is also kept as `LIBRARIAN_ROOT/asks/<id>.json`.
+An optional `LIBRARIAN_ROOT/context.md`, written by hand, tells the agent who the people,
+homes and things in the documents are; it goes into the agent's instructions as is.
+
+`uv run --env-file .env librarian-eval-retrieval --cases <file>` asks every case in
+`LIBRARIAN_ROOT/evals/retrieval/<file>` through the whole pipeline and scores what the
+result says (the value, the quote, the status), not which document it came from.
+`--model` (required) picks the agent's model, `--question N` asks only the case at position N (from 0),
+`--repeat N` asks each question N times. Each run writes `runs/run-<time>.md`, the summary
+it also prints, and `runs/run-<time>/` with every question's whole inquiry.
 
 Checks: `uv run ruff check .` · `uv run ruff format .` · `uv run pyright` · `uv run pytest`.
 
