@@ -6,3 +6,5 @@ __pycache__/
 dist/
 .env
 .docs/
+.claude/
+CLAUDE.local.md
