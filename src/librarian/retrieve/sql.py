@@ -9,12 +9,15 @@ wrong rows.
 """
 
 import atexit
-from datetime import date, datetime, time
+import json
+import threading
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, LiteralString, cast
 
 import psycopg
 from psycopg import sql
+from psycopg.types.json import set_json_loads
 from psycopg.types.range import Range
 from pydantic import BaseModel, ConfigDict
 
@@ -22,6 +25,11 @@ from librarian.config import READER_DATABASE_URL
 
 MAX_ROWS = 200
 TOO_MANY_ROWS = "too many rows: aggregate in SQL or add a LIMIT"
+# Our own clock, outside the session: the role's 5 s statement_timeout is a default the
+# agent's SQL can switch off (set_config), this one it can't. A bit later than 5 s, so
+# the database's own timeout normally fires first.
+CANCEL_SECONDS = 8
+CANCELLED = f"stopped after {CANCEL_SECONDS} s: make the query cheaper"
 
 _CONNINFO = READER_DATABASE_URL.replace("+psycopg", "")
 _connection: psycopg.Connection | None = None
@@ -32,7 +40,13 @@ def reader_connection() -> psycopg.Connection:
     global _connection
     if _connection is None or _connection.closed:
         _connection = psycopg.connect(_CONNINFO)
+        # JSON numbers as Decimal, like the app's own engine: amounts stay exact.
+        set_json_loads(_loads_with_decimals, _connection)
     return _connection
+
+
+def _loads_with_decimals(data: str | bytes) -> Any:
+    return json.loads(data, parse_float=Decimal)
 
 
 def _close() -> None:
@@ -53,32 +67,58 @@ class SqlResult(BaseModel):
     error: str | None = None
 
 
-_ROW_RETURNING = {"SELECT", "WITH", "VALUES", "TABLE"}
-
-
 def run_sql(query: str) -> SqlResult:
     """Run one query as `librarian_reader`.
 
-    Row-returning queries go through a server-side cursor and stop after MAX_ROWS + 1
-    rows, so a runaway SELECT never reaches memory; more than MAX_ROWS rows comes back
-    as the cap error. Anything else runs as written and fails at the database.
+    The role's read-only and 5 s settings are only defaults the session can change, so:
+    - one statement per call: it goes through a prepared statement, and Postgres refuses
+      to prepare more than one command ("SET statement_timeout = 0; SELECT ..." fails);
+    - every call is rolled back, never committed: a SET dies with its call and never
+      reaches the next one on this long-lived connection;
+    - our code cancels the query after CANCEL_SECONDS, whatever the session has set.
+
+    Every query is wrapped as `SELECT * FROM (<query>) AS q LIMIT MAX_ROWS + 1`, so
+    Postgres itself stops at the cap and a runaway SELECT never reaches memory (libpq
+    buffers a whole result); more than MAX_ROWS rows comes back as the cap error. No
+    guessing from the first word ("/* */ SELECT" fooled that): what can't be a subquery
+    (writes, SET, SHOW, EXPLAIN) fails at the database.
     """
+    timer: threading.Timer | None = None
+    cancelled = threading.Event()
     try:
         connection = reader_connection()
-        with connection.transaction():
-            if _returns_rows(query):
-                with connection.cursor(name="run_sql") as cursor:
-                    cursor.execute(raw_sql(query))
-                    result = _collect(cursor)
-            else:
-                with connection.cursor() as cursor:
-                    cursor.execute(raw_sql(query))
-                    result = _collect(cursor)
+
+        def cancel() -> None:
+            cancelled.set()
+            connection.cancel_safe()
+
+        timer = threading.Timer(CANCEL_SECONDS, cancel)
+        timer.start()
+        with connection.transaction(force_rollback=True), connection.cursor() as cursor:
+            cursor.execute(raw_sql(wrapped(query)), prepare=True)
+            result = _collect(cursor)
     except Exception as error:  # noqa: BLE001 - the agent reads this, it is not a crash
+        if cancelled.is_set():
+            return SqlResult(error=CANCELLED)
         return SqlResult(error=_message(error))
+    finally:
+        # Stop the timer and wait for it, so a late cancel can't hit the next call.
+        if timer is not None:
+            timer.cancel()
+            timer.join()
     if len(result.rows) > MAX_ROWS:
         return SqlResult(error=TOO_MANY_ROWS)
     return result
+
+
+def wrapped(query: str) -> str:
+    """The agent's query as a subquery capped at MAX_ROWS + 1 rows. Trailing semicolons
+    go (they can't sit inside the parentheses); the closing parenthesis gets its own line,
+    so a trailing `-- comment` can't swallow it."""
+    body = query.strip()
+    while body.endswith(";"):
+        body = body[:-1].rstrip()
+    return f"SELECT * FROM (\n{body}\n) AS q LIMIT {MAX_ROWS + 1}"
 
 
 def raw_sql(query: str) -> sql.SQL:
@@ -87,18 +127,16 @@ def raw_sql(query: str) -> sql.SQL:
     return sql.SQL(cast(LiteralString, query))
 
 
-def _returns_rows(query: str) -> bool:
-    text = query.strip()
-    while text.startswith("("):
-        text = text[1:].lstrip()
-    word = text.split(None, 1)[0].upper() if text else ""
-    return word in _ROW_RETURNING
-
-
 def _collect(cursor: psycopg.Cursor[Any]) -> SqlResult:
     if cursor.description is None:
         return SqlResult()
     columns = [column.name for column in cursor.description]
+    # Rows are dicts by column name: a repeated name would silently drop a value.
+    seen: set[str] = set()
+    for name in columns:
+        if name in seen:
+            return SqlResult(error=f"two columns are named {name!r}: name them apart with AS")
+        seen.add(name)
     rows = [
         {name: _jsonable(value) for name, value in zip(columns, row, strict=True)}
         for row in cursor.fetchmany(MAX_ROWS + 1)
@@ -120,12 +158,21 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, (datetime, date, time)):
         return value.isoformat()
     if isinstance(value, Range):
-        return {"start": _jsonable(value.lower), "end": _jsonable(value.upper)}
+        return {"start": _jsonable(value.lower), "end": _jsonable(_last_day(value))}
     if isinstance(value, (list, tuple)):
         return [_jsonable(item) for item in value]
     if isinstance(value, dict):
         return {key: _jsonable(item) for key, item in value.items()}
     return str(value)
+
+
+def _last_day(value: Range) -> Any:
+    """The range's inclusive end. Postgres stores a daterange as [start, end), so a
+    bill for March comes back with upper = 1 April; the agent reads 31 March."""
+    upper = value.upper
+    if isinstance(upper, date) and not isinstance(upper, datetime) and not value.upper_inc:
+        return upper - timedelta(days=1)
+    return upper
 
 
 EXAMPLES: list[str] = [
@@ -164,9 +211,13 @@ What you can see (call schema() for the columns and the most used `fields` keys)
 - document_sections(id, document_id, position, heading, text, created_at)
 
 `fields` is a JSON object: its keys are not columns. Read a value with fields ->> 'key',
-test for a key with fields ? 'key'. `validity` is a date range: lower(validity) and
-upper(validity) are its bounds, and validity && daterange('2025-01-01', '2026-01-01')
-matches the year 2025.
+test for a key with fields ? 'key'. `validity` is a date range stored as [start, end):
+lower(validity) is the first day, upper(validity) the day after the last one. In the
+rows it comes back as {{start, end}} with end the last day. validity &&
+daterange('2025-01-01', '2026-01-01') matches the year 2025.
+
+Only a query runs: SELECT, WITH ... SELECT, VALUES or TABLE. Writes, SET, SHOW and
+EXPLAIN fail at the database.
 
 Limits: the connection is read-only, writes fail at the database; each statement stops
 after 5 seconds; a query returning more than 200 rows is an error, aggregate in SQL or

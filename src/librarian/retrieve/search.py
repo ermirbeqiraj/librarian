@@ -28,7 +28,7 @@ Mode = Literal["keyword", "vector", "hybrid"]
 
 # For the trim anchor: an unaccented term also matches its accented spelling
 # ("perche" ~ "perché").
-ACCENTED = {"a": "aàáâãäå", "e": "eèéêë", "i": "iìíîï", "o": "oùóôõö", "u": "uùúûü", "c": "cç"}
+ACCENTED = {"a": "aàáâãäå", "e": "eèéêë", "i": "iìíîï", "o": "oòóôõö", "u": "uùúûü", "c": "cç"}
 
 
 class Hit(BaseModel):
@@ -70,11 +70,16 @@ def search(
 
     `mode` picks the sides that run; `query_vector` injects the query embedding (tests do
     that, so they don't need the embedder). Sections in `seen` come back as their id only.
+    `document_ids` empty (an SQL step found no documents) means no hits, not all documents.
     """
     if mode not in ("keyword", "vector", "hybrid"):
         raise ValueError(f"unknown mode: {mode!r}")
     if limit < 1:
         raise ValueError(f"limit must be at least 1: {limit}")
+    if document_ids is not None:
+        document_ids = list(document_ids)
+        if not document_ids:
+            return []
     filters, params = _filters(period, kind, document_ids)
     params["query"] = query
     params["rrf_k"] = RRF_K
@@ -103,7 +108,7 @@ def _filters(
     if kind is not None:
         clauses.append("d.kind = :kind")
         params["kind"] = kind
-    if document_ids:
+    if document_ids is not None:
         clauses.append("s.document_id = ANY(:document_ids)")
         params["document_ids"] = list(document_ids)
     if period is not None:

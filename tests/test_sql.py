@@ -7,6 +7,7 @@ readable, 5 s stops pg_sleep, 200 rows cap.
 """
 
 import re
+import resource
 import time
 from datetime import date
 from decimal import Decimal
@@ -16,7 +17,15 @@ from sqlalchemy.dialects.postgresql import Range
 
 import librarian.retrieve.schema as schema_module
 from librarian.retrieve.schema import schema
-from librarian.retrieve.sql import MAX_ROWS, SQL_TOOL_DESCRIPTION, TOO_MANY_ROWS, run_sql
+from librarian.retrieve.sql import (
+    CANCEL_SECONDS,
+    CANCELLED,
+    MAX_ROWS,
+    SQL_TOOL_DESCRIPTION,
+    TOO_MANY_ROWS,
+    reader_connection,
+    run_sql,
+)
 
 
 @pytest.fixture
@@ -50,6 +59,58 @@ def test_writes_fail_at_the_database(test_db: None, query: str) -> None:
     assert result.error is not None
     assert result.rows == []
     assert result.columns == []
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "SET statement_timeout = 0; SELECT pg_sleep(6)",
+        "SELECT 1; SET statement_timeout = 0; SELECT pg_sleep(6)",
+        "SET TRANSACTION READ WRITE; CREATE TEMP TABLE t AS SELECT 1 AS x",
+    ],
+)
+def test_more_than_one_statement_is_refused(test_db: None, query: str) -> None:
+    started = time.monotonic()
+    result = run_sql(query)
+    assert result.error is not None
+    assert time.monotonic() - started < 2
+
+
+def test_a_set_is_refused_and_the_timeout_holds(test_db: None) -> None:
+    assert run_sql("SET statement_timeout = 0").error is not None
+    started = time.monotonic()
+    result = run_sql("SELECT pg_sleep(10)")
+    assert result.error is not None
+    assert "statement timeout" in result.error
+    assert time.monotonic() - started < 7
+
+
+def test_set_config_in_the_query_does_not_lift_the_timeout(test_db: None) -> None:
+    result = run_sql("SELECT set_config('statement_timeout', '0', false), pg_sleep(10)")
+    assert result.error is not None
+    assert "statement timeout" in result.error
+
+
+def test_our_clock_stops_a_query_when_the_role_has_no_timeout(test_db: None) -> None:
+    # A role provisioned without statement_timeout: only our clock is left.
+    connection = reader_connection()
+    connection.execute("SET statement_timeout = 0")
+    connection.commit()
+    started = time.monotonic()
+    result = run_sql("SELECT pg_sleep(30)")
+    elapsed = time.monotonic() - started
+    connection.execute("RESET statement_timeout")
+    connection.commit()
+    assert result.error == CANCELLED
+    assert CANCEL_SECONDS <= elapsed < CANCEL_SECONDS + 3
+    # The connection is still good for the next call.
+    assert run_sql("SELECT 1 AS one").rows == [{"one": 1}]
+
+
+def test_a_trailing_semicolon_is_fine(test_db: None) -> None:
+    result = run_sql("SELECT 1 AS one;")
+    assert result.error is None
+    assert result.rows == [{"one": 1}]
 
 
 @pytest.mark.parametrize("query", ["SELECT * FROM ingestions", "SELECT * FROM chunks"])
@@ -120,7 +181,7 @@ def test_schema_lists_field_keys_with_count_kinds_and_example(
 ) -> None:
     add_document(
         kind="invoice",
-        fields={"issuer": "Hera S.p.A.", "service": "gas", "total_amount": "63.33"},
+        fields={"issuer": "Hera S.p.A.", "service": "gas", "total_amount": Decimal("63.33")},
     )
     add_document(kind="invoice", fields={"issuer": "Cogeide S.p.A.", "service": "water"})
     add_document(kind="contract", fields={"issuer": "Controparte S.p.A."})
@@ -132,7 +193,7 @@ def test_schema_lists_field_keys_with_count_kinds_and_example(
     assert keys["service"].kinds == ["invoice"]
     assert keys["service"].example in {"gas", "water"}
     assert keys["total_amount"].document_count == 1
-    assert keys["total_amount"].example == 63.33
+    assert keys["total_amount"].example == Decimal("63.33")
 
 
 def test_schema_returns_only_the_top_100_field_keys(add_document, fresh_schema: None) -> None:
@@ -177,3 +238,47 @@ def test_every_example_in_the_tool_description_runs_and_returns_rows(add_documen
         result = run_sql(example)
         assert result.error is None, example
         assert result.rows, example
+
+
+def _peak_rss_kb() -> int:
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+
+
+@pytest.mark.parametrize("prefix", ["", "/* */ ", "-- note\n", "(", "\n\n  "])
+def test_only_the_capped_rows_reach_memory(test_db: None, prefix: str) -> None:
+    # ~200 MB of rows from built-in functions only. The first-word check used to send
+    # "/* */ SELECT" past the cursor, and libpq buffered all of it before the cap.
+    query = prefix + "SELECT repeat('x', 1000) AS payload FROM generate_series(1, 200000)"
+    if prefix == "(":
+        query += ")"
+    before = _peak_rss_kb()
+    result = run_sql(query)
+    added_mb = (_peak_rss_kb() - before) / 1024
+    assert result.error == TOO_MANY_ROWS
+    assert added_mb < 50, f"{added_mb:.0f} MB buffered before the row cap"
+
+
+def test_commented_select_still_runs(test_db: None) -> None:
+    assert run_sql("/* why */ SELECT 1 AS one").rows == [{"one": 1}]
+    assert run_sql("-- why\nSELECT 1 AS one").rows == [{"one": 1}]
+
+
+def test_order_by_inside_survives_the_wrap(test_db: None) -> None:
+    result = run_sql("SELECT g FROM generate_series(1, 150) g ORDER BY g DESC")
+    values = [row["g"] for row in result.rows]
+    assert values == list(range(150, 0, -1))
+
+
+def test_trailing_comment_and_semicolons_are_fine(test_db: None) -> None:
+    assert run_sql("SELECT 1 AS one -- the count\n").rows == [{"one": 1}]
+    assert run_sql("SELECT 1 AS one ;; ").rows == [{"one": 1}]
+
+
+def test_repeated_column_names_ask_for_an_alias(add_document) -> None:
+    add_document(sections=[("Bolletta", "Testo", [("Bolletta\nTesto", 0)])])
+    join = "FROM documents d JOIN document_sections s ON s.document_id = d.id"
+    result = run_sql("SELECT d.id, s.id " + join)
+    assert result.error == "two columns are named 'id': name them apart with AS"
+    result = run_sql("SELECT d.id AS document_id, s.id AS section_id " + join)
+    assert result.error is None
+    assert set(result.rows[0]) == {"document_id", "section_id"}
