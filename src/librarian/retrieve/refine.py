@@ -24,8 +24,7 @@ from librarian.adapters import mistral
 MODEL = "mistral-medium-2604"
 MAX_RETRIES = mistral.MAX_RETRIES
 
-INSTRUCTIONS_DIR = Path(__file__).parent / "instructions"
-INSTRUCTIONS = "v3"
+INSTRUCTIONS = Path(__file__).parent / "instructions" / "refine-v3.md"
 
 MESI = (
     "gennaio",
@@ -92,14 +91,11 @@ def refine(
     return refined.model_copy(update={"user_query": question})
 
 
-def instructions_text(version: str) -> str:
-    return (INSTRUCTIONS_DIR / f"{version}.md").read_text(encoding="utf-8").strip()
-
-
 def _instructions(today: date) -> str:
     oggi = f"{today.day} {MESI[today.month - 1]} {today.year}"
     return (
-        instructions_text(INSTRUCTIONS)
+        INSTRUCTIONS.read_text(encoding="utf-8")
+        .strip()
         .replace("{today}", today.isoformat())
         .replace("{oggi}", oggi)
     )

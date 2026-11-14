@@ -206,7 +206,7 @@ _EXAMPLES_SQL = "\n\n".join(f"```sql\n{example}\n```" for example in EXAMPLES)
 
 SQL_TOOL_DESCRIPTION = f"""Run one SQL query against the library database and read the rows.
 
-What you can see (call schema() for the columns and the most used `fields` keys):
+What you can see (the columns and the most used `fields` keys are in your instructions):
 - documents(id, ingestion_id, kind, validity, fields, parser, description, problems, status, created_at)
 - document_sections(id, document_id, position, heading, text, created_at)
 

@@ -15,7 +15,7 @@ class Source(BaseModel):
     document_id: int
     kind: str
     section: str | None
-    page: int | None
+    page: int | None = None
 
 
 class Value(BaseModel):
@@ -23,7 +23,9 @@ class Value(BaseModel):
     # A number as SQL returns it, or text as written: "63,33 €", "04/11/2026", a code.
     value: Decimal | str
     unit: str | None
-    verified: bool
+    # Set by code after the agent submits, whatever the agent sent: true only when the
+    # source's document was read by a parser (confirmed), not drafted by a model.
+    verified: bool = False
     source: int
 
 
@@ -33,7 +35,7 @@ class Passage(BaseModel):
 
 
 class Result(BaseModel):
-    # None only from a retriever that gave no answer at all.
+    # None only when the agent never submitted.
     status: Status | None
     values: list[Value]
     passages: list[Passage]

@@ -1,6 +1,6 @@
 """The schema the agent sees: the visible tables and the top keys of `documents.fields`.
 
-Two fixed queries, written here, run once and kept in memory: the agent calls schema(),
+Two fixed queries, written here, run once and kept in memory: the agent reads schema(),
 it never writes schema queries itself. They run as `librarian_reader`, so
 `information_schema` already hides everything the agent cannot read.
 """
