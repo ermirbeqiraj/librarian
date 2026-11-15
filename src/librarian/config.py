@@ -33,3 +33,18 @@ CONTEXT_FILE = ROOT / "context.md"
 POLL_SECONDS = int(os.environ.get("LIBRARIAN_POLL_SECONDS", "10"))
 DOCLING_URL = os.environ.get("LIBRARIAN_DOCLING_URL", "http://127.0.0.1:5001")
 EMBEDDER_URL = os.environ.get("LIBRARIAN_EMBEDDER_URL", "http://127.0.0.1:8083")
+# A link to a document's file: {path} is its processed file's path under ROOT, quoted.
+# Unset, a source has no file link.
+FILE_URL = os.environ.get("LIBRARIAN_FILE_URL")
+# The agent's model when the MCP server asks; librarian-ask and the evals name their own.
+AGENT_MODEL = os.environ.get("LIBRARIAN_AGENT_MODEL", "deepseek-v4-1-flash-1017")
+# Where librarian-serve listens.
+SERVE_HOST = os.environ.get("LIBRARIAN_SERVE_HOST", "127.0.0.1")
+SERVE_PORT = int(os.environ.get("LIBRARIAN_SERVE_PORT", "8090"))
+# How each request to librarian-serve proves its caller: access (the JWT Cloudflare Access
+# signs) or bearer (LIBRARIAN_BEARER_TOKEN). No default: unset, the server doesn't start.
+AUTH = os.environ.get("LIBRARIAN_AUTH")
+BEARER_TOKEN = os.environ.get("LIBRARIAN_BEARER_TOKEN")
+# The Access team, only <team> of <team>.cloudflareaccess.com, and the application's AUD tag.
+ACCESS_TEAM = os.environ.get("LIBRARIAN_ACCESS_TEAM")
+ACCESS_AUD = os.environ.get("LIBRARIAN_ACCESS_AUD")

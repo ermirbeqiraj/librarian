@@ -16,7 +16,7 @@ from librarian.models import Ask, AskStatus
 from librarian.retrieve import ask
 from librarian.retrieve.ask import Inquiry
 from librarian.retrieve.refine import Query, Refined
-from librarian.retrieve.result import Result, Source, Status, Value
+from librarian.retrieve.result import LinkedSource, Result, Status, Value
 from librarian.retrieve.schema import Schema
 from librarian.retrieve.sql import SqlResult
 from librarian.retrieve.trace import tracer
@@ -85,6 +85,8 @@ def fakes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:
     monkeypatch.setattr(ask, "CONTEXT_FILE", tmp_path / "missing.md")
     monkeypatch.setattr(ask, "search", lambda *args, **kwargs: [])
     monkeypatch.setattr(ask, "_statuses", lambda document_ids: {})
+    monkeypatch.setattr(ask, "sections", lambda document_id: None)
+    monkeypatch.setattr(ask, "_paths", lambda document_ids: {})
 
     def script(calls: list[Any]) -> None:
         chat = FakeChat(calls)
@@ -133,6 +135,7 @@ def test_a_run_that_submits_leaves_every_event_in_order(trace_store: Store, fake
         "2 tool_result",
         "submitted",
         "verified",
+        "linked",
         "finished",
     ]
     seqs: list[int] = []
@@ -281,8 +284,8 @@ def test_verified_comes_from_the_document_status(monkeypatch: pytest.MonkeyPatch
         ],
         passages=[],
         sources=[
-            Source(id=1, document_id=10, kind="invoice", section=None),
-            Source(id=2, document_id=20, kind="receipt", section=None),
+            LinkedSource(id=1, document_id=10, kind="invoice", section=None, section_id=None),
+            LinkedSource(id=2, document_id=20, kind="receipt", section=None, section_id=None),
         ],
         trace_id="x",
     )

@@ -10,7 +10,7 @@ import librarian.evals.retrieval.__main__ as eval_retrieval
 from librarian.evals.retrieval.runner import Case, load_cases, score
 from librarian.retrieve import ask
 from librarian.retrieve.ask import Inquiry
-from librarian.retrieve.result import Passage, Result, Source, Status, Value
+from librarian.retrieve.result import LinkedSource, Passage, Result, Status, Value
 
 AMOUNT = Case(
     file="water.json",
@@ -48,11 +48,12 @@ CASES = [AMOUNT, SPLIT, QUOTE, ABSENT]
 
 
 def answer(status: Status | None, document_ids: list[int]) -> Result:
-    sources: list[Source] = []
+    sources: list[LinkedSource] = []
     for document_id in document_ids:
-        sources.append(
-            Source(id=document_id, document_id=document_id, kind="bill", section=None, page=1)
+        source = LinkedSource(
+            id=document_id, document_id=document_id, kind="bill", section=None, section_id=None
         )
+        sources.append(source)
     return Result(
         status=status,
         values=[Value(name="total", value="41,27 €", unit=None, verified=False, source=11)],

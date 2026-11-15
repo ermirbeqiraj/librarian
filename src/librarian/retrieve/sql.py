@@ -1,16 +1,16 @@
 """The agent's read-only SQL tool: run one query as `librarian_reader`, see the schema.
 
-The connection is set up once at startup from `LIBRARIAN_READER_DATABASE_URL` and speaks
-only as the `librarian_reader` role (provisioned outside the app: by infra on a managed
-cluster, by the test setup in dev — no migration creates roles): read-only, one 5 s
-statement, SELECT on `documents` and `document_sections` only. A bad query fails at the
-database and comes back as an error the agent can read; the worst it can do is return
-wrong rows.
+Each thread's connection comes from `LIBRARIAN_READER_DATABASE_URL` and speaks only as
+the `librarian_reader` role (provisioned outside the app: by infra on a managed cluster,
+by the test setup in dev — no migration creates roles): read-only, one 5 s statement,
+SELECT on `documents` and `document_sections` only. A bad query fails at the database and
+comes back as an error the agent can read; the worst it can do is return wrong rows.
 """
 
 import atexit
 import json
 import threading
+import weakref
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, LiteralString, cast
@@ -32,17 +32,26 @@ CANCEL_SECONDS = 8
 CANCELLED = f"stopped after {CANCEL_SECONDS} s: make the query cheaper"
 
 _CONNINFO = READER_DATABASE_URL.replace("+psycopg", "")
-_connection: psycopg.Connection | None = None
+# One connection per thread, opened on first use and kept for the thread: the MCP server
+# reads from several threads at once, and a transaction or a cancel on a shared connection
+# would land on another thread's query.
+_local = threading.local()
+# Every one still open, closed at exit; a thread's goes when the thread does.
+_open: weakref.WeakSet[psycopg.Connection] = weakref.WeakSet()
+_open_lock = threading.Lock()
 
 
 def reader_connection() -> psycopg.Connection:
-    """The one connection the tool uses, opened on first use and kept for the process."""
-    global _connection
-    if _connection is None or _connection.closed:
-        _connection = psycopg.connect(_CONNINFO)
+    """This thread's connection."""
+    connection: psycopg.Connection | None = getattr(_local, "connection", None)
+    if connection is None or connection.closed:
+        connection = psycopg.connect(_CONNINFO)
         # JSON numbers as Decimal, like the app's own engine: amounts stay exact.
-        set_json_loads(_loads_with_decimals, _connection)
-    return _connection
+        set_json_loads(_loads_with_decimals, connection)
+        _local.connection = connection
+        with _open_lock:
+            _open.add(connection)
+    return connection
 
 
 def _loads_with_decimals(data: str | bytes) -> Any:
@@ -50,8 +59,9 @@ def _loads_with_decimals(data: str | bytes) -> Any:
 
 
 def _close() -> None:
-    if _connection is not None:
-        _connection.close()
+    with _open_lock:
+        for connection in list(_open):
+            connection.close()
 
 
 atexit.register(_close)

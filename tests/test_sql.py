@@ -8,14 +8,17 @@ readable, 5 s stops pg_sleep, 200 rows cap.
 
 import re
 import resource
+import threading
 import time
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from sqlalchemy.dialects.postgresql import Range
 
 import librarian.retrieve.schema as schema_module
+from librarian.retrieve import documents
 from librarian.retrieve.schema import schema
 from librarian.retrieve.sql import (
     CANCEL_SECONDS,
@@ -282,3 +285,31 @@ def test_repeated_column_names_ask_for_an_alias(add_document) -> None:
     result = run_sql("SELECT d.id AS document_id, s.id AS section_id " + join)
     assert result.error is None
     assert set(result.rows[0]) == {"document_id", "section_id"}
+
+
+def test_threads_read_at_once_each_on_its_own_connection(add_document: Any) -> None:
+    # The MCP server reads from several threads at once: asks, get_section, get_document.
+    document = add_document(sections=[("Totale", "Totale da pagare", [])])
+    section_id = document.sections[0].id
+    start = threading.Barrier(6, timeout=5)
+    failures: list[str] = []
+
+    def read() -> None:
+        start.wait()
+        try:
+            for _ in range(20):
+                if documents.section(section_id) != "## Totale\n\nTotale da pagare":
+                    failures.append("wrong text")
+                if run_sql("SELECT pg_sleep(0.01), 1 AS one").error is not None:
+                    failures.append("sql error")
+        except Exception as error:  # noqa: BLE001 - collected, the assert below shows it
+            failures.append(f"{type(error).__name__}: {error}")
+
+    threads: list[threading.Thread] = []
+    for _ in range(6):
+        threads.append(threading.Thread(target=read))
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert failures == []
