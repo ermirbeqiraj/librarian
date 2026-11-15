@@ -3,6 +3,7 @@
     "**/.ruff_cache": true,
     "**/.venv": true,
     "**/__pycache__": true,
-    "**/.pytest_cache": true
+    "**/.pytest_cache": true,
+    ".claude": true
   }
 }

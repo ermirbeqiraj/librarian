@@ -1,4 +1,4 @@
-"""Test setup: the app runs against a throwaway `librarian_test` database on the compose
+"""Test setup: the adapters run against a throwaway `librarian_test` database on the compose
 Postgres, migrated once per session. When Postgres is unreachable the database tests skip.
 """
 
@@ -10,8 +10,13 @@ TEST_DATABASE_URL = os.environ.get(
     "LIBRARIAN_TEST_DATABASE_URL",
     "postgresql+psycopg://librarian:librarian@127.0.0.1:5432/librarian_test",
 )
-# Point the app at the test database before any librarian module is imported.
+TEST_READER_URL = os.environ.get(
+    "LIBRARIAN_TEST_READER_DATABASE_URL",
+    "postgresql+psycopg://librarian_reader:librarian_reader@127.0.0.1:5432/librarian_test",
+)
+# A host built in a test points at the test database too: set before any librarian import.
 os.environ["LIBRARIAN_DATABASE_URL"] = TEST_DATABASE_URL
+os.environ["LIBRARIAN_READER_DATABASE_URL"] = TEST_READER_URL
 
 import pytest
 from alembic import command
@@ -22,23 +27,20 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session as DbSession
 
-import librarian.db
-from librarian.config import READER_PASSWORD
-from librarian.models import (
-    Chunk,
-    Document,
-    DocumentSection,
-    DocumentStatus,
-    Ingestion,
-    IngestionStatus,
-)
-from librarian.models.chunk import DIMENSIONS
-from librarian.retrieve.trace import tracer
-from librarian.retrieve.trace.tracer import Event, FileStore, PostgresStore, Store
+from librarian.adapters.file_trace_store import FileStore
+from librarian.adapters.postgres import db as database
+from librarian.adapters.postgres.models import Chunk, Document, DocumentSection, Ingestion
+from librarian.adapters.postgres.models.chunk import DIMENSIONS
+from librarian.adapters.postgres.sql import ReaderConnections
+from librarian.adapters.postgres.trace_store import PostgresStore
+from librarian.application.ingest.document import DocumentStatus, IngestionStatus
+from librarian.application.retrieve.ports import Event, TraceStore
+from librarian.application.retrieve.tracer import Tracer
 
-Base = librarian.db.Base
-
-librarian.db.engine.echo = False
+# The reader role's statement_timeout, as infra provisions it.
+STATEMENT_TIMEOUT_SECONDS = 5
+SESSIONS = database.sessions(TEST_DATABASE_URL)
+READER = ReaderConnections(TEST_READER_URL)
 
 
 def unit_vector(index: int) -> list[float]:
@@ -71,13 +73,10 @@ def test_db() -> None:
         connection.execute(text("CREATE EXTENSION unaccent"))
     test_admin.dispose()
     config = Config()
-    config.set_main_option(
-        "script_location", str(Path(librarian.db.__file__).parent / "migrations")
-    )
+    config.set_main_option("script_location", str(Path(database.__file__).parent / "migrations"))
     command.upgrade(config, "head")
     _ensure_reader_role(admin, TEST_DATABASE_URL)
     yield
-    librarian.db.engine.dispose()
     with admin.connect() as connection:
         connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
     admin.dispose()
@@ -90,7 +89,7 @@ def _ensure_reader_role(admin: Engine, test_database_url: str) -> None:
     role has no CREATEROLE — so on the homeserver the role comes from infra. In the
     throwaway test database the test setup makes it, with the same borders.
     """
-    password = READER_PASSWORD.replace("'", "''")
+    password = (make_url(TEST_READER_URL).password or "").replace("'", "''")
     with admin.connect() as connection:
         connection.execute(
             text(
@@ -109,7 +108,8 @@ def _ensure_reader_role(admin: Engine, test_database_url: str) -> None:
         connection.execute(
             text("ALTER ROLE librarian_reader SET default_transaction_read_only = on")
         )
-        connection.execute(text("ALTER ROLE librarian_reader SET statement_timeout = '5s'"))
+        timeout = f"{STATEMENT_TIMEOUT_SECONDS}s"
+        connection.execute(text(f"ALTER ROLE librarian_reader SET statement_timeout = '{timeout}'"))
     test_admin = create_engine(test_database_url, isolation_level="AUTOCOMMIT")
     with test_admin.connect() as connection:
         connection.execute(text("GRANT USAGE ON SCHEMA public TO librarian_reader"))
@@ -121,10 +121,10 @@ def _ensure_reader_role(admin: Engine, test_database_url: str) -> None:
 @pytest.fixture
 def db(test_db: None) -> DbSession:
     """A session over the migrated test database, wiped after each test."""
-    with librarian.db.Session() as session:
+    with SESSIONS() as session:
         yield session
-    with librarian.db.Session() as session:
-        for table in reversed(Base.metadata.sorted_tables):
+    with SESSIONS() as session:
+        for table in reversed(database.Base.metadata.sorted_tables):
             session.execute(table.delete())
         session.commit()
 
@@ -171,26 +171,26 @@ def add_document(db: DbSession) -> Callable[..., Document]:
 
 
 @pytest.fixture(params=["file", "postgres"])
-def trace_store(
-    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> Store:
-    """The tracer writing to an empty store, once per store: files under tmp_path, then the
-    test database. Whatever is still waiting goes to it at the end."""
-    store: Store = FileStore(tmp_path / "traces")
+def trace_store(request: pytest.FixtureRequest, tmp_path: Path) -> TraceStore:
+    """An empty store, once per store: files under tmp_path, then the test database."""
     if request.param == "postgres":
         request.getfixturevalue("db")
-        store = PostgresStore()
-    monkeypatch.setattr(tracer, "store", store)
-    monkeypatch.setattr(tracer, "_pending", {})
-    monkeypatch.setattr(tracer, "_next_seq", {})
-    yield store
+        return PostgresStore(SESSIONS)
+    return FileStore(tmp_path / "traces")
+
+
+@pytest.fixture
+def tracer(trace_store: TraceStore) -> Tracer:
+    """A tracer on `trace_store`; whatever is still waiting goes to it at the end."""
+    tracer = Tracer(trace_store)
+    yield tracer
     tracer.flush()
 
 
 class RefusingStore:
     """A store that is down for its first `times` writes, then writes to `store`."""
 
-    def __init__(self, store: Store, times: int) -> None:
+    def __init__(self, store: TraceStore, times: int) -> None:
         self.store = store
         self.times = times
 

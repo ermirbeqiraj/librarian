@@ -26,6 +26,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: infra/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:latest
