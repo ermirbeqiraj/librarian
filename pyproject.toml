@@ -22,6 +22,7 @@ dependencies = [
 librarian = "librarian.__main__:main"
 librarian-ingest = "librarian.ingest.__main__:main"
 librarian-ask = "librarian.retrieve.__main__:main"
+librarian-trace = "librarian.retrieve.trace.__main__:main"
 librarian-eval-retrieval = "librarian.evals.retrieval.__main__:main"
 librarian-eval-search = "librarian.evals.search.__main__:main"
 librarian-eval-refine = "librarian.evals.refine.__main__:main"

@@ -1,29 +1,42 @@
 """One question in, one result out: refine, then the agent digs with the tools until it
 submits, then code marks which values come from documents a parser read.
 
-`ask` runs the steps in order. Each step reads the `Inquiry` and fills its own part of it.
+`ask` runs the steps in order. Each step fills its own part of the `Inquiry` and traces
+what it did under the run's correlation id: the trace, not the `Inquiry`, is the record.
 """
 
 import json
-from datetime import date, datetime, timedelta
+import subprocess
+import time
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 import sqlalchemy
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
+from langchain_core.runnables import RunnableLambda
 from langchain_core.tools import BaseTool, tool
 from langchain_mistralai import ChatMistralAI
 from pydantic import BaseModel
 
-from librarian.config import ASKS_DIR, CONTEXT_FILE
+from librarian.adapters import mistral
+from librarian.config import CONTEXT_FILE
 from librarian.db import Session
 from librarian.models.document import DocumentStatus
+from librarian.retrieve.refine import INSTRUCTIONS as REFINE_INSTRUCTIONS
+from librarian.retrieve.refine import MODEL as REFINE_MODEL
 from librarian.retrieve.refine import Refined, refine
 from librarian.retrieve.result import Passage, Result, Source, Status, Value
 from librarian.retrieve.schema import schema
 from librarian.retrieve.search import Hit, search
 from librarian.retrieve.sql import SQL_TOOL_DESCRIPTION, run_sql
+from librarian.retrieve.trace.tracer import Event, trace
 
 ROUNDS = 20
 # Choosing SQL or search, and reading a question two ways, is judgment: every model reasons.
@@ -33,66 +46,112 @@ INSTRUCTIONS = Path(__file__).parent / "instructions" / "dig-v7.md"
 LAST_ROUND = "È l'ultimo turno: chiama `submit` adesso con quello che hai trovato."
 
 
-class Call(BaseModel):
-    """One tool call: the arguments as the model sent them, and what went back to it."""
-
-    tool: str
-    args: dict[str, Any]
-    output: Any
-
-
-class Round(BaseModel):
-    """One model call of the agent: what it thought, what it wrote, the tools it called."""
-
-    thinking: str = ""
-    text: str = ""
-    calls: list[Call] = []
-
-
 class Inquiry(BaseModel):
-    """Everything one question goes through, from the question as typed to what leaves."""
+    """What one ask hands back: the question, its refined queries, the result, and the
+    totals the eval prints. Every step it went through is in its trace."""
 
-    # When it started, plus a random suffix: sorts by time, unique within a second.
-    id: str
-    # The agent's model; refine pins its own.
-    model: str
-    reasoning_effort: str = REASONING_EFFORT
+    correlation_id: str
     question: str
-    today: date
     refined: Refined | None = None
-    # At most ROUNDS.
-    rounds: list[Round] = []
-    # Summed over every model call of the agent (refine not counted).
+    result: Result | None = None
+    # Summed over every model call of the agent; refine's are in its own event.
     tokens_in: int = 0
     tokens_out: int = 0
-    result: Result | None = None
+    # At most ROUNDS.
+    rounds: int = 0
+    calls: int = 0
+    ms: int = 0
 
 
-def ask(question: str, model: str) -> Inquiry:
-    now = datetime.now()
-    inquiry = Inquiry(
-        id=f"{now:%Y-%m-%dT%H-%M-%S}-{uuid4().hex[:6]}",
-        model=model,
-        question=question,
-        today=now.date(),
+def ask(question: str, model: str, correlation_id: str) -> Inquiry:
+    """The caller owns the correlation id: it names the trace and is the result's trace_id."""
+    started = time.monotonic()
+    today = date.today()
+    trace(
+        correlation_id,
+        Event(
+            step="started",
+            kind="started",
+            data={
+                "question": question,
+                "today": today.isoformat(),
+                "git_sha": git_sha(),
+                "agent_model": model,
+                "reasoning": REASONING_EFFORT,
+                "refine_model": REFINE_MODEL,
+                "prompt": INSTRUCTIONS.name,
+                "refine_prompt": REFINE_INSTRUCTIONS.name,
+                "round_cap": ROUNDS,
+            },
+        ),
     )
-    inquiry.refined = refine(inquiry.question, inquiry.today)
-    _dig(inquiry)
-    _verify(inquiry)
-    _save(inquiry)
+    inquiry = Inquiry(correlation_id=correlation_id, question=question)
+    step = "refine"
+    try:
+        inquiry.refined = _refine(inquiry, today)
+        step = "system"
+        system = _instructions(correlation_id)
+        step = "round"
+        _dig(inquiry, model, system)
+        step = "verified"
+        _verify(inquiry)
+    except Exception as error:
+        inquiry.ms = _ms(started)
+        failed = _totals(inquiry)
+        failed["error"] = f"{type(error).__name__}: {error}"
+        failed["step"] = step
+        if step == "round":
+            failed["round"] = inquiry.rounds
+        trace(correlation_id, Event(step="failed", kind="failed", ms=inquiry.ms, data=failed))
+        raise
+    inquiry.ms = _ms(started)
+    finished = _totals(inquiry)
+    finished["status"] = None
+    if inquiry.result is not None:
+        finished["status"] = inquiry.result.status
+    trace(correlation_id, Event(step="finished", kind="finished", ms=inquiry.ms, data=finished))
     return inquiry
 
 
-def _save(inquiry: Inquiry) -> None:
-    """Every run kept as ASKS_DIR/<id>.json, to read back or grep later."""
-    ASKS_DIR.mkdir(parents=True, exist_ok=True)
-    path = ASKS_DIR / f"{inquiry.id}.json"
-    path.write_text(inquiry.model_dump_json(indent=2, by_alias=True) + "\n", encoding="utf-8")
+def _totals(inquiry: Inquiry) -> dict[str, Any]:
+    return {
+        "input_tokens": inquiry.tokens_in,
+        "output_tokens": inquiry.tokens_out,
+        "rounds": inquiry.rounds,
+        "calls": inquiry.calls,
+    }
 
 
-def _dig(inquiry: Inquiry) -> None:
+def _refine(inquiry: Inquiry, today: date) -> Refined:
+    """`refine` on the question, its model's tokens counted for the trace."""
+    usage = {"input_tokens": 0, "output_tokens": 0}
+    structured = mistral.structured(Refined, REFINE_MODEL)
+
+    def counted(messages: Any) -> Any:
+        answer = structured.invoke(messages)
+        raw = answer["raw"]
+        if isinstance(raw, AIMessage) and raw.usage_metadata is not None:
+            usage["input_tokens"] += raw.usage_metadata["input_tokens"]
+            usage["output_tokens"] += raw.usage_metadata["output_tokens"]
+        return answer
+
+    started = time.monotonic()
+    refined = refine(inquiry.question, today, model=RunnableLambda(counted))
+    data: dict[str, Any] = {
+        "model": REFINE_MODEL,
+        "input": inquiry.question,
+        "output": refined.model_dump(mode="json", by_alias=True)["queries"],
+        "input_tokens": usage["input_tokens"],
+        "output_tokens": usage["output_tokens"],
+    }
+    trace(inquiry.correlation_id, Event(step="refine", kind="refine", ms=_ms(started), data=data))
+    return refined
+
+
+def _dig(inquiry: Inquiry, model: str, system: str) -> None:
     """The model calls the tools in the order it judges best, at most ROUNDS times, and ends
     with `submit`; on the last round `submit` is the only tool it has."""
+    correlation_id = inquiry.correlation_id
     seen: list[int] = []
 
     @tool("search")
@@ -116,7 +175,11 @@ def _dig(inquiry: Inquiry) -> None:
     ) -> str:
         """Consegna il risultato. È l'ultima chiamata."""
         inquiry.result = Result(
-            status=status, values=values, passages=passages, sources=sources, trace_id=None
+            status=status,
+            values=values,
+            passages=passages,
+            sources=sources,
+            trace_id=correlation_id,
         )
         return "ok"
 
@@ -124,48 +187,75 @@ def _dig(inquiry: Inquiry) -> None:
     for each in tools.values():
         each.handle_validation_error = str
     chat = ChatMistralAI(
-        model_name=inquiry.model,
+        model_name=model,
         temperature=0,
-        model_kwargs={"reasoning_effort": inquiry.reasoning_effort},
+        model_kwargs={"reasoning_effort": REASONING_EFFORT},
     )
-    model = chat.bind_tools(list(tools.values()))
+    agent = chat.bind_tools(list(tools.values()))
     assert inquiry.refined is not None
     question = json.dumps(
         inquiry.refined.model_dump(mode="json", by_alias=True), ensure_ascii=False
     )
+    trace(correlation_id, Event(step="case", kind="case", data={"message": question}))
     messages: list[BaseMessage] = [
-        SystemMessage(_instructions()),
+        SystemMessage(system),
         HumanMessage(question),
     ]
-    for round in range(ROUNDS):
-        if round == ROUNDS - 1:
+    for round in range(1, ROUNDS + 1):
+        if round == ROUNDS:
             messages.append(HumanMessage(LAST_ROUND))
-            model = chat.bind_tools([submit], tool_choice="any")
-        reply = model.invoke(messages)
+            trace(correlation_id, Event(step="nudge", kind="nudge", data={"message": LAST_ROUND}))
+            agent = chat.bind_tools([submit], tool_choice="any")
+        inquiry.rounds = round
+        started = time.monotonic()
+        reply = agent.invoke(messages)
+        usage = {"input_tokens": 0, "output_tokens": 0}
+        if reply.usage_metadata is not None:
+            usage["input_tokens"] = reply.usage_metadata["input_tokens"]
+            usage["output_tokens"] = reply.usage_metadata["output_tokens"]
+        inquiry.tokens_in += usage["input_tokens"]
+        inquiry.tokens_out += usage["output_tokens"]
         messages.append(reply)
         thinking, text = _said(reply.content)
-        this_round = Round(thinking=thinking, text=text)
-        inquiry.rounds.append(this_round)
-        if reply.usage_metadata is not None:
-            inquiry.tokens_in += reply.usage_metadata["input_tokens"]
-            inquiry.tokens_out += reply.usage_metadata["output_tokens"]
+        if thinking:
+            _trace_round(correlation_id, round, "thinking", {"text": thinking})
+        if text:
+            _trace_round(correlation_id, round, "text", {"text": text})
+        _trace_round(correlation_id, round, "usage", usage, _ms(started))
         for tool_call in reply.tool_calls:
-            if tool_call["name"] in tools:
-                message = tools[tool_call["name"]].invoke(tool_call)
+            inquiry.calls += 1
+            name = tool_call["name"]
+            arguments = {"id": tool_call["id"], "name": name, "arguments": tool_call["args"]}
+            _trace_round(correlation_id, round, "tool_call", arguments)
+            started = time.monotonic()
+            if name in tools:
+                message = tools[name].invoke(tool_call)
             else:
                 # A tool error, like bad arguments: back to the model, not a crash.
                 message = ToolMessage(
-                    content=f"Lo strumento {tool_call['name']} non esiste.",
+                    content=f"Lo strumento {name} non esiste.",
                     tool_call_id=tool_call["id"],
+                    status="error",
                 )
             messages.append(message)
-            this_round.calls.append(
-                Call(
-                    tool=tool_call["name"], args=tool_call["args"], output=_parsed(message.content)
-                )
-            )
+            output = _parsed(message.content)
+            error = None
+            if message.status == "error":
+                error = message.content
+            elif name == "sql":
+                error = output["error"]
+            result = {"id": tool_call["id"], "name": name, "output": output, "error": error}
+            _trace_round(correlation_id, round, "tool_result", result, _ms(started))
         if inquiry.result is not None:
+            submitted = inquiry.result.model_dump(mode="json")
+            trace(correlation_id, Event(step="submitted", kind="submitted", data=submitted))
             return
+
+
+def _trace_round(
+    correlation_id: str, round: int, kind: str, data: dict[str, Any], ms: int | None = None
+) -> None:
+    trace(correlation_id, Event(step="round", round=round, kind=kind, ms=ms, data=data))
 
 
 def _verify(inquiry: Inquiry) -> None:
@@ -176,23 +266,67 @@ def _verify(inquiry: Inquiry) -> None:
     documents: dict[int, int] = {}
     for source in inquiry.result.sources:
         documents[source.id] = source.document_id
-    confirmed = _confirmed(list(documents.values()))
+    statuses = _statuses(list(documents.values()))
+    marked: list[dict[str, Any]] = []
     for value in inquiry.result.values:
-        value.verified = documents.get(value.source) in confirmed
+        document_id = documents.get(value.source)
+        status = None
+        if document_id is not None:
+            status = statuses.get(document_id)
+        value.verified = status == DocumentStatus.confirmed
+        marked.append(
+            {
+                "name": value.name,
+                "source": value.source,
+                "document_id": document_id,
+                "document_status": status,
+                "verified": value.verified,
+            }
+        )
+    trace(
+        inquiry.correlation_id,
+        Event(step="verified", kind="verified", data={"values": marked}),
+    )
 
 
-def _confirmed(document_ids: list[int]) -> set[int]:
+def _statuses(document_ids: list[int]) -> dict[int, str]:
+    statuses: dict[int, str] = {}
     if not document_ids:
-        return set()
+        return statuses
     with Session() as session:
         rows = session.execute(
-            sqlalchemy.text("SELECT id FROM documents WHERE status = :status AND id = ANY(:ids)"),
-            {"status": DocumentStatus.confirmed.value, "ids": document_ids},
+            sqlalchemy.text("SELECT id, status FROM documents WHERE id = ANY(:ids)"),
+            {"ids": document_ids},
         ).all()
-    confirmed: set[int] = set()
     for row in rows:
-        confirmed.add(row[0])
-    return confirmed
+        statuses[row[0]] = row[1]
+    return statuses
+
+
+def git_sha() -> str | None:
+    """The commit this code runs from, -dirty with uncommitted changes; None when git
+    can't answer (the image has no git and no .git)."""
+    here = Path(__file__).parent
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=here,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        changes = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=here, capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    if changes:
+        return head + "-dirty"
+    return head
+
+
+def _ms(started: float) -> int:
+    return round((time.monotonic() - started) * 1000)
 
 
 LIBRARY_SQL = """SELECT kind, fields ->> 'issuer' AS issuer, count(*) AS documents,
@@ -200,18 +334,29 @@ LIBRARY_SQL = """SELECT kind, fields ->> 'issuer' AS issuer, count(*) AS documen
 FROM documents GROUP BY 1, 2 ORDER BY 1, 2"""
 
 
-def _instructions() -> str:
+def _instructions(correlation_id: str) -> str:
     library = run_sql(LIBRARY_SQL)
     if library.error is not None:
         raise RuntimeError(f"the library query failed: {library.error}")
+    rows = json.dumps(library.rows, ensure_ascii=False, default=str)
+    library_schema = schema()
     text = INSTRUCTIONS.read_text(encoding="utf-8")
     context = ""
     if CONTEXT_FILE.exists():
         context = CONTEXT_FILE.read_text(encoding="utf-8").strip()
     text = text.replace("{context}", context)
     text = text.replace("{rounds}", str(ROUNDS))
-    text = text.replace("{library}", json.dumps(library.rows, ensure_ascii=False, default=str))
-    return text.replace("{schema}", schema().model_dump_json(indent=1))
+    text = text.replace("{library}", rows)
+    text = text.replace("{schema}", library_schema.model_dump_json(indent=1))
+    data = {
+        "prompt": INSTRUCTIONS.name,
+        "context": context,
+        "library": json.loads(rows),
+        "schema": library_schema.model_dump(mode="json"),
+        "text": text,
+    }
+    trace(correlation_id, Event(step="system", kind="system", data=data))
+    return text
 
 
 def _hit(hit: Hit) -> dict[str, Any]:
