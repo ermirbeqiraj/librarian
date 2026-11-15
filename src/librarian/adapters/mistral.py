@@ -10,15 +10,20 @@ from langchain_core.runnables import Runnable
 from langchain_mistralai import ChatMistralAI
 from pydantic import BaseModel
 
+from librarian.adapters.paid_calls import PaidCalls
+
 MODEL = "mistral-small-2603"  # pinned: what mistral-small-latest pointed to on 2026-11-12
 MAX_RETRIES = 5
 
 
-def structured[T: BaseModel](schema: type[T], model_name: str = MODEL) -> Runnable[Any, Any]:
+def structured[T: BaseModel](
+    schema: type[T], model_name: str = MODEL, paid_calls: PaidCalls | None = None
+) -> Runnable[Any, Any]:
     """A Mistral chat model that answers in `schema`, with the raw answer kept for retries."""
-    return ChatMistralAI(model_name=model_name, temperature=0).with_structured_output(
-        schema, include_raw=True
-    )
+    chat = ChatMistralAI(model_name=model_name, temperature=0)
+    if paid_calls is not None:
+        paid_calls.watch(chat.client)
+    return chat.with_structured_output(schema, include_raw=True)
 
 
 def ask[T: BaseModel](

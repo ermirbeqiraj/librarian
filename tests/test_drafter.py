@@ -7,7 +7,9 @@ from langchain_core.runnables import RunnableLambda
 from pydantic import ValidationError
 
 from librarian.adapters.mistral import ask
+from librarian.ingest.drafter.drafter import INSTRUCTIONS, instructions_text
 from librarian.ingest.drafter.schema import Draft, Validity
+from librarian.ingest.parsers.kinds import FIELDS
 from librarian.models.document_kind import DocumentKind
 
 DRAFT = Draft(
@@ -69,3 +71,11 @@ def test_asks_again_when_the_answer_has_no_draft() -> None:
     assert ask(model([empty, valid()], asked), Draft, [("human", "page")], max_retries=2) == DRAFT
     assert len(asked) == 2
     assert asked[1][2][0] == "human" and "no structured output" in asked[1][2][1]
+
+
+def test_the_prompt_names_each_kinds_fields() -> None:
+    lines = instructions_text(INSTRUCTIONS).splitlines()
+    for kind, names in FIELDS.items():
+        start = lines.index(f"- {kind}:") + 1
+        for offset, name in enumerate(names):
+            assert lines[start + offset].startswith(f"  - {name}: ")

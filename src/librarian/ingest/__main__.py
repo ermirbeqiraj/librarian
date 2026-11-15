@@ -1,5 +1,7 @@
+import argparse
 import signal
 import threading
+import time
 from types import FrameType
 
 from librarian.config import POLL_SECONDS
@@ -15,6 +17,15 @@ def stop(signum: int, frame: FrameType | None) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Ingest what lands in the inbox, until stopped.")
+    parser.add_argument(
+        "--once", action="store_true", help="process what is in the inbox, then exit"
+    )
+    args = parser.parse_args()
+    if args.once:
+        while ingest_once():
+            time.sleep(POLL_SECONDS)
+        return
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     while not stop_requested.is_set():
