@@ -1,8 +1,15 @@
 import json
+import re
+import sys
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
+import librarian.evals.retrieval.__main__ as eval_retrieval
 from librarian.evals.retrieval.runner import Case, load_cases, score
+from librarian.retrieve import ask
+from librarian.retrieve.ask import Inquiry
 from librarian.retrieve.result import Passage, Result, Source, Status, Value
 
 AMOUNT = Case(
@@ -99,3 +106,37 @@ def test_cases_keep_their_position_in_the_file(tmp_path: Path) -> None:
     )
     cases = load_cases(path)
     assert [(case.index, case.question) for case in cases] == [(0, "prima"), (1, "seconda")]
+
+
+def test_a_question_that_errors_is_skipped_and_the_run_goes_on(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def fake_ask(question: str, model: str, correlation_id: str) -> Inquiry:
+        if question == "prima":
+            raise RuntimeError("429 Too Many Requests")
+        inquiry = Inquiry(correlation_id=correlation_id, question=question)
+        inquiry.result = answer(Status.not_found, [])
+        return inquiry
+
+    cases = [
+        {"question": "prima", "type": "absence", "answer": {"status": "not_found"}},
+        {"question": "seconda", "type": "absence", "answer": {"status": "not_found"}},
+    ]
+    (tmp_path / "cases.json").write_text(json.dumps(cases))
+    monkeypatch.setattr(eval_retrieval, "CASES_DIR", tmp_path)
+    monkeypatch.setattr(eval_retrieval, "RUNS_DIR", tmp_path / "runs")
+    monkeypatch.setattr(ask, "ask", fake_ask)
+    argv = ["librarian-eval-retrieval", "--cases", "cases.json", "--model", "fake"]
+    monkeypatch.setattr(sys, "argv", argv)
+    eval_retrieval.main()
+
+    summary = next((tmp_path / "runs").glob("*.md")).read_text()
+    assert "- score: hit 1/1 · answer 0/0 · honesty 1/1 · skipped 1\n" in summary
+    assert re.search(
+        r"\| 0 \| 1 \| skipped \| RuntimeError \|.*\| run-\S+-q00-r1 \| prima \|", summary
+    )
+    assert "| 1 | 1 | HIT | not_found |" in summary
+    record = json.loads(next((tmp_path / "runs").glob("run-*/00-1.json")).read_text())
+    assert record["marks"] == {"hit": None, "answer": None, "honesty": None}
+    assert record["error"] == "RuntimeError: 429 Too Many Requests"
+    assert "inquiry" not in record
