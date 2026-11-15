@@ -5,6 +5,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import StrEnum, auto
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -28,7 +29,15 @@ PROGRESS_SECONDS = 10
 # which runs in the event loop's default pool.
 ASKS = ThreadPoolExecutor(thread_name_prefix="ask")
 
-server = MCPServer("librarian")
+# What the outside agent reads: the server's instructions and each tool's description.
+INSTRUCTIONS = Path(__file__).parent / "instructions"
+
+
+def _instructions(name: str) -> str:
+    return (INSTRUCTIONS / f"{name}.md").read_text(encoding="utf-8").strip()
+
+
+server = MCPServer("librarian", instructions=_instructions("server"))
 
 
 class Rating(StrEnum):
@@ -36,13 +45,8 @@ class Rating(StrEnum):
     bad = auto()
 
 
-@server.tool(name="ask")
+@server.tool(name="ask", description=_instructions("ask"))
 async def ask_tool(question: str, ctx: Context[Any, Any]) -> Result:
-    """Ask the library one question, in Italian. Every value and passage in the result points
-    at a source: a document and its section. A source's `section_id` and `document_id` read
-    further, with `get_section` and `get_document`; `section_chars` and `document_chars` are
-    how long each is. `file` links to the document's file. `trace_id` names the record of the
-    run."""
     # When it started, plus a random suffix: sorts by time, unique within a second.
     correlation_id = f"mcp-{datetime.now():%Y-%m-%dT%H-%M-%S}-{uuid4().hex[:6]}"
     # In a thread of its own: the event loop serves other requests while this one digs.
@@ -64,29 +68,24 @@ async def ask_tool(question: str, ctx: Context[Any, Any]) -> Result:
     return inquiry.result
 
 
-@server.tool()
+@server.tool(description=_instructions("get_section"))
 def get_section(section_id: int) -> str:
-    """A section's whole text, under its heading: the `section_id` of a source `ask` gave,
-    `section_chars` long."""
     text = documents.section(section_id)
     if text is None:
         raise ToolError(f"no section {section_id}")
     return text
 
 
-@server.tool()
+@server.tool(description=_instructions("get_document"))
 def get_document(document_id: int) -> str:
-    """A whole document's text, its sections in order, each under its heading: the
-    `document_id` of a source `ask` gave, `document_chars` long."""
     text = documents.document(document_id)
     if text is None:
         raise ToolError(f"no document {document_id}")
     return text
 
 
-@server.tool()
+@server.tool(description=_instructions("feedback"))
 def feedback(trace_id: str, rating: Rating, note: str | None = None) -> str:
-    """Rate an answer `ask` gave, by its `trace_id`: good or bad, with a note saying why."""
     # The rating points at the run's asks row, which only the postgres store writes.
     if not isinstance(tracer.store, PostgresStore):
         raise ToolError(
