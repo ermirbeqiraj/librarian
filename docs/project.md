@@ -65,9 +65,14 @@ Drop PDFs in `LIBRARIAN_ROOT/inbox/`. `uv run librarian` checks the database
 connection.
 
 `uv run --env-file .env librarian-ask --model <model> "qnd scade la bolletta"` asks one question
-and prints everything it went through as JSON: the refined queries, every round (what the
-model thought and the tools it called), the result. There is no default model. Every
-run, from the command or the eval, is also kept as `LIBRARIAN_ROOT/asks/<id>.json`.
+and prints its correlation id (`ask-<time>-<6 hex>`, on stderr), then the refined queries, the
+result and the totals as JSON. There is no default model. Every run, from the command or the
+eval, leaves a trace under its correlation id: each step it went through, in order, with its
+time (refine, the system text, every round's thinking, tool calls and results, what was
+submitted and verified, how it ended). `LIBRARIAN_TRACE_STORE` picks where: `file` keeps
+`LIBRARIAN_ROOT/traces/<id>.jsonl`, `postgres` the `asks` and `ask_events` tables.
+`uv run librarian-trace <id>` prints one trace as a tree, long text cut to a few lines;
+`--full` prints it all.
 An optional `LIBRARIAN_ROOT/context.md`, written by hand, tells the agent who the people,
 homes and things in the documents are; it goes into the agent's instructions as is.
 
@@ -76,7 +81,8 @@ homes and things in the documents are; it goes into the agent's instructions as 
 result says (the value, the quote, the status), not which document it came from.
 `--model` (required) picks the agent's model, `--question N` asks only the case at position N (from 0),
 `--repeat N` asks each question N times. Each run writes `runs/run-<time>.md`, the summary
-it also prints, and `runs/run-<time>/` with every question's whole inquiry.
+it also prints, and `runs/run-<time>/` with every question's case, marks and inquiry. Each
+ask's correlation id is `run-<time>-q<NN>-r<N>` (case, attempt), in its row of the summary.
 
 Checks: `uv run ruff check .` · `uv run ruff format .` · `uv run pyright` · `uv run pytest`.
 
@@ -92,10 +98,11 @@ use `user:` in Compose if the library folder belongs to someone else.
 | Variable | Default | What |
 |---|---|---|
 | `MISTRAL_API_KEY` | none, required | Drafter and OCR |
-| `LIBRARIAN_ROOT` | `~/.local/share/librarian`, `/library` in the image | Holds `inbox/`, `processed/`, `quarantine/`, `evals/` |
+| `LIBRARIAN_ROOT` | `~/.local/share/librarian`, `/library` in the image | Holds `inbox/`, `processed/`, `quarantine/`, `evals/`, `traces/` |
 | `LIBRARIAN_DATABASE_URL` | `postgresql+psycopg://librarian:librarian@127.0.0.1:5432/librarian` | Postgres |
 | `LIBRARIAN_READER_PASSWORD` | `librarian_reader` (dev only) | Password of the read-only `librarian_reader` role the SQL tool connects as. The role itself is provisioned outside the app — by infra on the homeserver, by the test setup in dev; no migration creates roles — so set the password on the homeserver |
 | `LIBRARIAN_READER_DATABASE_URL` | `LIBRARIAN_DATABASE_URL` as `librarian_reader` | The SQL tool's read-only connection |
 | `LIBRARIAN_DOCLING_URL` | `http://127.0.0.1:5001` | docling-serve |
 | `LIBRARIAN_EMBEDDER_URL` | `http://127.0.0.1:8083` | Text Embeddings Inference running bge-m3 |
 | `LIBRARIAN_POLL_SECONDS` | `10` | Seconds between inbox checks |
+| `LIBRARIAN_TRACE_STORE` | `file` | Where every ask's trace goes: `file` or `postgres` |

@@ -24,7 +24,10 @@ INBOX_DIR = ROOT / "inbox"
 QUARANTINE_DIR = ROOT / "quarantine"
 PROCESSED_DIR = ROOT / "processed"
 EVALS_DIR = ROOT / "evals"
-ASKS_DIR = ROOT / "asks"
+# Every ask's trace, as <correlation id>.jsonl, when LIBRARIAN_TRACE_STORE is file.
+TRACES_DIR = ROOT / "traces"
+# Where traces go: file (TRACES_DIR) or postgres (the asks and ask_events tables).
+TRACE_STORE = os.environ.get("LIBRARIAN_TRACE_STORE", "file")
 # Who the people, homes and things in the documents are; written by hand, never in the repo.
 CONTEXT_FILE = ROOT / "context.md"
 POLL_SECONDS = int(os.environ.get("LIBRARIAN_POLL_SECONDS", "10"))

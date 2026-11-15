@@ -33,6 +33,8 @@ from librarian.models import (
     IngestionStatus,
 )
 from librarian.models.chunk import DIMENSIONS
+from librarian.retrieve.trace import tracer
+from librarian.retrieve.trace.tracer import Event, FileStore, PostgresStore, Store
 
 Base = librarian.db.Base
 
@@ -166,3 +168,37 @@ def add_document(db: DbSession) -> Callable[..., Document]:
         return document
 
     return _add
+
+
+@pytest.fixture(params=["file", "postgres"])
+def trace_store(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Store:
+    """The tracer writing to an empty store, once per store: files under tmp_path, then the
+    test database. Whatever is still waiting goes to it at the end."""
+    store: Store = FileStore(tmp_path / "traces")
+    if request.param == "postgres":
+        request.getfixturevalue("db")
+        store = PostgresStore()
+    monkeypatch.setattr(tracer, "store", store)
+    monkeypatch.setattr(tracer, "_pending", {})
+    monkeypatch.setattr(tracer, "_next_seq", {})
+    yield store
+    tracer.flush()
+
+
+class RefusingStore:
+    """A store that is down for its first `times` writes, then writes to `store`."""
+
+    def __init__(self, store: Store, times: int) -> None:
+        self.store = store
+        self.times = times
+
+    def write(self, correlation_id: str, events: list[Event]) -> None:
+        if self.times > 0:
+            self.times -= 1
+            raise OSError("No space left on device")
+        self.store.write(correlation_id, events)
+
+    def read(self, correlation_id: str) -> list[Event]:
+        return self.store.read(correlation_id)

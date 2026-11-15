@@ -1,12 +1,11 @@
 """Ask a questionnaire through the whole pipeline and score what comes back.
 
 Each run writes runs/run-<time>.md, the summary also printed here, and runs/run-<time>/ with one
-file per question and attempt: the case, its marks and the whole inquiry, from the question as
-typed to the result.
+file per question and attempt: the case, its marks and the inquiry. Each ask's correlation id is
+<run>-q<NN>-r<N>; `librarian-trace <id>` shows every step it went through.
 """
 
 import argparse
-import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
@@ -49,7 +48,7 @@ def main() -> None:
     started = time.monotonic()
     for case in cases:
         for attempt in range(1, args.repeat + 1):
-            line, marks, inquiry = _ask(case, args.model, attempt, details)
+            line, marks, inquiry = _ask(case, args.model, attempt, name, details)
             lines.append(line)
             for mark_name, mark in marks.items():
                 if mark is not None:
@@ -69,12 +68,12 @@ def main() -> None:
         "",
         f"- cases: {args.cases}, question: {question}, repeat: {args.repeat}",
         f"- model: {args.model} · reasoning: {ask.REASONING_EFFORT} · prompt: {ask.INSTRUCTIONS.name} · refine: {REFINE_MODEL}",
-        f"- commit: {_commit()}",
+        f"- commit: {ask.git_sha()}",
         f"- score: hit {hit} · answer {answer} · honesty {honesty}",
         f"- tokens: in {tokens_in}, out {tokens_out} · time: {seconds} s",
         "",
-        "| # | try | mark | status | rounds | calls | tokens in/out | s | question |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| # | try | mark | status | rounds | calls | tokens in/out | s | id | question |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     text = "\n".join(summary + lines) + "\n"
     (RUNS_DIR / f"{name}.md").write_text(text, encoding="utf-8")
@@ -83,11 +82,11 @@ def main() -> None:
 
 
 def _ask(
-    case: Case, model: str, attempt: int, details: Path
+    case: Case, model: str, attempt: int, run: str, details: Path
 ) -> tuple[str, dict[str, bool | None], ask.Inquiry]:
-    started = time.monotonic()
-    inquiry = ask.ask(case.question, model)
-    seconds = round(time.monotonic() - started)
+    # One id per ask: repeats of a question would mix under one.
+    correlation_id = f"{run}-q{case.index:02d}-r{attempt}"
+    inquiry = ask.ask(case.question, model, correlation_id)
     marks: dict[str, bool | None] = {"hit": False, "answer": None, "honesty": False}
     status = "no submit"
     if inquiry.result is not None:
@@ -104,7 +103,6 @@ def _ask(
         },
         "attempt": attempt,
         "marks": marks,
-        "seconds": seconds,
         "inquiry": inquiry.model_dump(mode="json", by_alias=True),
     }
     path = details / f"{case.index:02d}-{attempt}.json"
@@ -113,30 +111,16 @@ def _ask(
         encoding="utf-8",
     )
     mark = "HIT" if marks["hit"] else "miss"
-    calls = 0
-    for each in inquiry.rounds:
-        calls += len(each.calls)
     line = (
-        f"| {case.index} | {attempt} | {mark} | {status} | {len(inquiry.rounds)} | {calls} "
-        f"| {inquiry.tokens_in}/{inquiry.tokens_out} | {seconds} | {case.question} |"
+        f"| {case.index} | {attempt} | {mark} | {status} | {inquiry.rounds} | {inquiry.calls} "
+        f"| {inquiry.tokens_in}/{inquiry.tokens_out} | {round(inquiry.ms / 1000)} "
+        f"| {correlation_id} | {case.question} |"
     )
     return line, marks, inquiry
 
 
 def _ratio(counts: list[int]) -> str:
     return f"{counts[0]}/{counts[1]}"
-
-
-def _commit() -> str:
-    head = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
-    ).stdout.strip()
-    changes = subprocess.run(
-        ["git", "status", "--porcelain"], capture_output=True, text=True, check=True
-    ).stdout.strip()
-    if changes:
-        return head + "-dirty"
-    return head
 
 
 if __name__ == "__main__":
