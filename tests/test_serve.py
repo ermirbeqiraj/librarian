@@ -413,3 +413,15 @@ def test_feedback_with_the_file_store_is_a_tool_error(
     result = call(serve(), BEARER, "feedback", {"trace_id": "mcp-x", "rating": "good"})
     assert result.is_error
     assert "LIBRARIAN_TRACE_STORE=postgres" in text(result)
+
+
+def test_every_tool_reads_its_instructions_file_and_every_file_has_its_tool() -> None:
+    names = {"server"}
+    for tool in anyio.run(server.server.list_tools):
+        names.add(tool.name)
+        assert tool.description == (server.INSTRUCTIONS / f"{tool.name}.md").read_text().strip()
+    files = set()
+    for path in server.INSTRUCTIONS.glob("*.md"):
+        files.add(path.stem)
+    assert files == names
+    assert server.server.instructions == (server.INSTRUCTIONS / "server.md").read_text().strip()
