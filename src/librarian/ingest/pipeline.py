@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.orm import Session as DbSession
 
 from librarian.adapters import embedder
+from librarian.adapters.paid_calls import PaidCalls
 from librarian.adapters.readers import docling_reader, mistral_ocr
 from librarian.adapters.readers.element import Element
 from librarian.config import INBOX_DIR, PROCESSED_DIR, QUARANTINE_DIR, ROOT
@@ -30,19 +31,26 @@ SETTLE_SECONDS = 60
 OCR_UNDER_PAGES = 5
 # Kind, validity and the key fields sit up front; a 65-page booklet timed out the drafter.
 DRAFT_PAGES = 10
+# OCR, drafter and every retry, the client's own included: past it, quarantine.
+PAID_CALLS_PER_DOCUMENT = 5
 
 
-def ingest_once() -> None:
+def ingest_once() -> bool:
+    """One pass over the inbox. True when a file was still being written and waits."""
     INBOX_DIR.mkdir(parents=True, exist_ok=True)
+    waiting = False
     for path in sorted(INBOX_DIR.iterdir()):
-        if path.is_file() and not path.name.startswith("."):
+        if not path.is_file() or path.name.startswith("."):
+            continue
+        if _settled(path):
             process(path)
+        else:
+            print(f"{path.name}: still being written, skipped")
+            waiting = True
+    return waiting
 
 
 def process(path: Path) -> None:
-    if not _settled(path):
-        print(f"{path.name}: still being written, skipped")
-        return
     ingestion = Ingestion(
         original_file_name=path.name,
         file_size=path.stat().st_size,
@@ -95,7 +103,7 @@ def _ingest(session: DbSession, path: Path, ingestion: Ingestion) -> None:
     except UnknownDocument:
         _drafted(session, path, elements, ingestion)
     except UnknownLayout as reason:
-        ingestion.error = repr(reason)
+        print(f"{path.name}: {reason}, drafted")
         _drafted(session, path, elements, ingestion)
     else:
         _parsed(session, path, elements, parser, ingestion)
@@ -145,23 +153,21 @@ def _parsed(
 
 
 def _drafted(session: DbSession, path: Path, elements: list[Element], ingestion: Ingestion) -> None:
+    paid_calls = PaidCalls(PAID_CALLS_PER_DOCUMENT)
     reason = ocr_reason(elements)
     if reason is None:
         text = document_text([e for e in elements if e.page <= DRAFT_PAGES])
         digest = content_hash(elements)
         sections = from_docling(elements)
     else:
-        note = f"read with OCR: {reason}"
-        if ingestion.error:
-            note = f"{ingestion.error}; {note}"
-        ingestion.error = note
-        pages = mistral_ocr.read_pages(path)
+        print(f"{path.name}: read with OCR, {reason}")
+        pages = mistral_ocr.read_pages(path, paid_calls)
         digest = text_hash("\n\n".join(pages))
         text = "\n\n".join(pages[:DRAFT_PAGES])
         sections = from_markdown(pages)
     if _duplicate(session, ingestion, digest):
         return
-    checked = draft(text)
+    checked = draft(text, paid_calls=paid_calls)
     drafted = checked.draft
     fields: dict[str, str] = {}
     for field in drafted.fields:

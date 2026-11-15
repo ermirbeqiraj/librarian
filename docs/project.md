@@ -61,8 +61,10 @@ a superuser creates both in the database before the first `alembic upgrade head`
 uv run --env-file .env librarian-ingest
 ```
 
-Drop PDFs in `LIBRARIAN_ROOT/inbox/`. `uv run librarian` checks the database
-connection.
+Drop PDFs in `LIBRARIAN_ROOT/inbox/`. It watches the inbox until stopped; with `--once` it
+processes what is there, waiting for files still being written, then exits. A document
+gets at most 5 paid Mistral calls (OCR, drafter and every retry); past them it goes to
+quarantine. `uv run librarian` checks the database connection.
 
 `uv run --env-file .env librarian-ask --model <model> "qnd scade la bolletta"` asks one question
 and prints its correlation id (`ask-<time>-<6 hex>`, on stderr), then the refined queries, the

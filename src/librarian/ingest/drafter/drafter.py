@@ -2,12 +2,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from librarian.adapters.mistral import MAX_RETRIES, MODEL, ask, structured
+from librarian.adapters.paid_calls import PaidCalls
 from librarian.adapters.readers.element import Element
 from librarian.ingest.drafter.checks import Problem, problems
 from librarian.ingest.drafter.schema import Draft
+from librarian.ingest.parsers.kinds import DESCRIPTIONS, FIELDS
 
 INSTRUCTIONS_DIR = Path(__file__).parent / "instructions"
-INSTRUCTIONS = "v4"
+INSTRUCTIONS = "v5"
 
 
 @dataclass(frozen=True)
@@ -34,7 +36,18 @@ def document_text(elements: list[Element]) -> str:
 
 
 def instructions_text(version: str) -> str:
-    return (INSTRUCTIONS_DIR / f"{version}.md").read_text().strip()
+    """The prompt, with each kind's field list in place of {fields}."""
+    text = (INSTRUCTIONS_DIR / f"{version}.md").read_text().strip()
+    return text.replace("{fields}", _fields_text())
+
+
+def _fields_text() -> str:
+    lines: list[str] = []
+    for kind, names in FIELDS.items():
+        lines.append(f"- {kind}:")
+        for name in names:
+            lines.append(f"  - {name}: {DESCRIPTIONS[name]}")
+    return "\n".join(lines)
 
 
 def draft(
@@ -42,8 +55,9 @@ def draft(
     model_name: str = MODEL,
     instructions: str = INSTRUCTIONS,
     max_retries: int = MAX_RETRIES,
+    paid_calls: PaidCalls | None = None,
 ) -> CheckedDraft:
-    model = structured(Draft, model_name)
+    model = structured(Draft, model_name, paid_calls)
     messages = [("system", instructions_text(instructions)), ("human", text)]
     result = ask(model, Draft, messages, max_retries)
     found = problems(result, text)

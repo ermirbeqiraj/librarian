@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from sqlalchemy.dialects.postgresql import Range
 
 from librarian.adapters.readers.element import Element
+from librarian.ingest.parsers.kinds import FIELDS
 from librarian.ingest.parsers.sections import Section
 from librarian.models.document_kind import DocumentKind
 
@@ -25,6 +26,12 @@ class Parsed:
     kind: DocumentKind
     validity: Range[date] | None
     fields: dict[str, Any]
+
+    def __post_init__(self) -> None:
+        listed = FIELDS.get(self.kind, [])
+        for name in self.fields:
+            if name not in listed:
+                raise ParseError(f"{name!r} is not in the {self.kind} field list")
 
 
 class Parser(Protocol):
