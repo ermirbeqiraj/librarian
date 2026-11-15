@@ -11,6 +11,7 @@ import time
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import sqlalchemy
 from langchain_core.messages import (
@@ -26,13 +27,14 @@ from langchain_mistralai import ChatMistralAI
 from pydantic import BaseModel
 
 from librarian.adapters import mistral
-from librarian.config import CONTEXT_FILE
+from librarian.config import CONTEXT_FILE, FILE_URL
 from librarian.db import Session
 from librarian.models.document import DocumentStatus
+from librarian.retrieve.documents import joined, sections
 from librarian.retrieve.refine import INSTRUCTIONS as REFINE_INSTRUCTIONS
 from librarian.retrieve.refine import MODEL as REFINE_MODEL
 from librarian.retrieve.refine import Refined, refine
-from librarian.retrieve.result import Passage, Result, Source, Status, Value
+from librarian.retrieve.result import LinkedSource, Passage, Result, Source, Status, Value
 from librarian.retrieve.schema import schema
 from librarian.retrieve.search import Hit, search
 from librarian.retrieve.sql import SQL_TOOL_DESCRIPTION, run_sql
@@ -42,7 +44,7 @@ ROUNDS = 20
 # Choosing SQL or search, and reading a question two ways, is judgment: every model reasons.
 # Set here, not left to the model: GLM thinks by default, DeepSeek and Mistral do not.
 REASONING_EFFORT = "high"
-INSTRUCTIONS = Path(__file__).parent / "instructions" / "dig-v7.md"
+INSTRUCTIONS = Path(__file__).parent / "instructions" / "dig-v8.md"
 LAST_ROUND = "È l'ultimo turno: chiama `submit` adesso con quello che hai trovato."
 
 
@@ -95,6 +97,8 @@ def ask(question: str, model: str, correlation_id: str) -> Inquiry:
         _dig(inquiry, model, system)
         step = "verified"
         _verify(inquiry)
+        step = "linked"
+        _link(inquiry)
     except Exception as error:
         inquiry.ms = _ms(started)
         failed = _totals(inquiry)
@@ -174,11 +178,14 @@ def _dig(inquiry: Inquiry, model: str, system: str) -> None:
         status: Status, values: list[Value], passages: list[Passage], sources: list[Source]
     ) -> str:
         """Consegna il risultato. È l'ultima chiamata."""
+        linked: list[LinkedSource] = []
+        for source in sources:
+            linked.append(LinkedSource.model_validate(source.model_dump()))
         inquiry.result = Result(
             status=status,
             values=values,
             passages=passages,
-            sources=sources,
+            sources=linked,
             trace_id=correlation_id,
         )
         return "ok"
@@ -287,6 +294,67 @@ def _verify(inquiry: Inquiry) -> None:
         inquiry.correlation_id,
         Event(step="verified", kind="verified", data={"values": marked}),
     )
+
+
+def _link(inquiry: Inquiry) -> None:
+    """Each source gets the sizes of its section and its document, as get_section and
+    get_document return them, and its file's link. A section_id not in the source's document
+    becomes None, and so does every size of a document that doesn't exist."""
+    if inquiry.result is None:
+        return
+    document_ids: list[int] = []
+    for source in inquiry.result.sources:
+        document_ids.append(source.document_id)
+    paths = _paths(document_ids)
+    linked: list[dict[str, Any]] = []
+    for source in inquiry.result.sources:
+        sent = source.section_id
+        texts = sections(source.document_id)
+        source.section_id = None
+        if texts is not None:
+            source.document_chars = len(joined(texts))
+            if sent in texts:
+                source.section_id = sent
+                source.section_chars = len(texts[sent])
+        source.file = _file(paths.get(source.document_id))
+        linked.append(
+            {
+                "id": source.id,
+                "document_id": source.document_id,
+                "section_id_sent": sent,
+                "section_id": source.section_id,
+                "section_chars": source.section_chars,
+                "document_chars": source.document_chars,
+                "file": source.file,
+            }
+        )
+    trace(inquiry.correlation_id, Event(step="linked", kind="linked", data={"sources": linked}))
+
+
+def _paths(document_ids: list[int]) -> dict[int, str]:
+    """Each document's processed file, relative to LIBRARIAN_ROOT."""
+    paths: dict[int, str] = {}
+    if not document_ids:
+        return paths
+    with Session() as session:
+        rows = session.execute(
+            sqlalchemy.text(
+                "SELECT d.id, i.destination_path FROM documents d"
+                " JOIN ingestions i ON i.id = d.ingestion_id"
+                " WHERE d.id = ANY(:ids) AND i.destination_path IS NOT NULL"
+            ),
+            {"ids": document_ids},
+        ).all()
+    for row in rows:
+        paths[row[0]] = row[1]
+    return paths
+
+
+def _file(path: str | None) -> str | None:
+    """LIBRARIAN_FILE_URL with the path in it, quoted; None without either."""
+    if FILE_URL is None or path is None:
+        return None
+    return FILE_URL.replace("{path}", quote(path))
 
 
 def _statuses(document_ids: list[int]) -> dict[int, str]:

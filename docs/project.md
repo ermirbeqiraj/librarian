@@ -73,6 +73,20 @@ submitted and verified, how it ended). `LIBRARIAN_TRACE_STORE` picks where: `fil
 `LIBRARIAN_ROOT/traces/<id>.jsonl`, `postgres` the `asks` and `ask_events` tables.
 `uv run librarian-trace <id>` prints one trace as a tree, long text cut to a few lines;
 `--full` prints it all.
+`uv run --env-file .env librarian-serve` serves `ask` to an outside agent over MCP (streamable
+HTTP at `/mcp`, on `LIBRARIAN_SERVE_HOST:LIBRARIAN_SERVE_PORT`). Its agent model is
+`LIBRARIAN_AGENT_MODEL`; each ask's correlation id is `mcp-<time>-<6 hex>`, returned as
+`trace_id`. Every request passes the auth before MCP sees it, and the server doesn't start
+without one: `LIBRARIAN_AUTH=bearer` wants `Authorization: Bearer <LIBRARIAN_BEARER_TOKEN>` (401
+otherwise), `LIBRARIAN_AUTH=access` wants Cloudflare Access's `Cf-Access-Jwt-Assertion`, checked
+against the team's keys, issuer and the app's AUD tag (403 otherwise).
+Each source in the result carries its `section_id` (null for a row from SQL), the lengths of
+its section and its document in characters, and `file`: `LIBRARIAN_FILE_URL` with `{path}`
+replaced by the processed file's path under `LIBRARIAN_ROOT`, quoted (null when unset).
+`get_section(section_id)` returns a section's whole text under its heading,
+`get_document(document_id)` a document's sections in order; both read as `librarian_reader`.
+`feedback(trace_id, rating, note)` rates an answer `good` or `bad` in `ask_feedback`; it needs
+`LIBRARIAN_TRACE_STORE=postgres`, since the rating points at the run's `asks` row.
 An optional `LIBRARIAN_ROOT/context.md`, written by hand, tells the agent who the people,
 homes and things in the documents are; it goes into the agent's instructions as is.
 
@@ -106,3 +120,11 @@ use `user:` in Compose if the library folder belongs to someone else.
 | `LIBRARIAN_EMBEDDER_URL` | `http://127.0.0.1:8083` | Text Embeddings Inference running bge-m3 |
 | `LIBRARIAN_POLL_SECONDS` | `10` | Seconds between inbox checks |
 | `LIBRARIAN_TRACE_STORE` | `file` | Where every ask's trace goes: `file` or `postgres` |
+| `LIBRARIAN_FILE_URL` | none | A link to a document's file, with `{path}` in it; unset, sources have no link |
+| `LIBRARIAN_AGENT_MODEL` | `deepseek-v4-1-flash-1017` | The agent's model in `librarian-serve` |
+| `LIBRARIAN_SERVE_HOST` | `127.0.0.1` | Where `librarian-serve` listens |
+| `LIBRARIAN_SERVE_PORT` | `8090` | Its port |
+| `LIBRARIAN_AUTH` | none, required by `librarian-serve` | `bearer` or `access` |
+| `LIBRARIAN_BEARER_TOKEN` | none | The token `bearer` wants, 32 characters or more |
+| `LIBRARIAN_ACCESS_TEAM` | none | The Access team for `access`: only the `<team>` of `<team>.cloudflareaccess.com` |
+| `LIBRARIAN_ACCESS_AUD` | none | The Access application's AUD tag, for `access` |

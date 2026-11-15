@@ -20,7 +20,7 @@ Il fascicolo:
 
 Regole:
 - Ogni valore e ogni passaggio viene da quello che gli strumenti ti hanno restituito: una riga di `sql` o una sezione di `search`. Non inventare, non calcolare, non riassumere.
-- Ogni valore e passaggio punta a una fonte (`source`, il suo `id` in `sources`); ogni fonte è una sezione di `search` (col suo `document_id`, `kind` e `heading` come `section`) o un documento di `sql` (`section` null). Le fonti sono tutti i documenti da cui viene il fascicolo: per una somma, ogni documento sommato.
+- Ogni valore e passaggio punta a una fonte (`source`, il suo `id` in `sources`); ogni fonte è una sezione di `search` (col suo `document_id`, `kind`, `heading` come `section` e `section_id`) o un documento di `sql` (`section` e `section_id` null). Le fonti sono tutti i documenti da cui viene il fascicolo: per una somma, ogni documento sommato.
 - È `partial`, non `found`, anche quando il valore c'è ma non è proprio quello chiesto:
   - il documento copre un periodo più lungo di quello chiesto: una bolletta di tre mesi non dice quanto costa uno solo;
   - nel periodo chiesto mancano dei documenti: una somma dell'anno con dei mesi senza bolletta;
