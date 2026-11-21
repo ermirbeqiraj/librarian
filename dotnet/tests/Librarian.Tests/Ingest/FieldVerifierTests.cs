@@ -19,6 +19,14 @@ public sealed class FieldVerifierTests
         Assert.False(FieldVerifier.FoundIn("INTESA SANPAOLO", "intesa sanpaolo"));
     }
 
+    [Fact]
+    public void A_null_as_written_or_value_from_the_model_is_not_found_and_not_well_formed()
+    {
+        Assert.False(FieldVerifier.FoundIn("some text", null));
+        Assert.False(FieldVerifier.WellFormed(FieldKind.Date, null));
+        Assert.False(FieldVerifier.WellFormed(FieldKind.Number, null));
+    }
+
     [Theory]
     [InlineData(FieldKind.Date, "2026-09-01", true)]
     [InlineData(FieldKind.Date, "2026-02-30", false)]

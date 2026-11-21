@@ -11,14 +11,14 @@ public static partial class FieldVerifier
     [GeneratedRegex(@"^-?\d+(\.\d+)?$")]
     private static partial Regex NumberPattern();
 
-    public static bool FoundIn(string text, string asWritten)
-        => Flatten(text).Contains(Flatten(asWritten), StringComparison.Ordinal);
+    public static bool FoundIn(string text, string? asWritten)
+        => asWritten is not null && Flatten(text).Contains(Flatten(asWritten), StringComparison.Ordinal);
 
-    public static bool WellFormed(FieldKind kind, string value) => kind switch
+    public static bool WellFormed(FieldKind kind, string? value) => kind switch
     {
-        FieldKind.Date => DatePattern().IsMatch(value)
+        FieldKind.Date => value is not null && DatePattern().IsMatch(value)
             && DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _),
-        FieldKind.Number => NumberPattern().IsMatch(value),
+        FieldKind.Number => value is not null && NumberPattern().IsMatch(value),
         _ => true,
     };
 

@@ -14,8 +14,10 @@ dotnet/                        the .NET app
 ├── nuget.config               nuget.org only, signatures required, trusted signers pinned
 ├── src/
 │   ├── Librarian.Application  the brain: Ports/{Feature}/, Handlers/{Feature}/,
-│   │                          Services/ when the first shared service exists;
-│   │                          references nothing (a test enforces it)
+│   │                          Domain/, Services/ when the first shared service exists;
+│   │                          references only abstractions (a test enforces it):
+│   │                          EF Core, Microsoft.Extensions.AI, MAF — never a vendor
+│   │                          package (Npgsql, Pgvector, OpenAI)
 │   ├── Librarian.Adapters     one directory per technology (Docling/, Mistral/,
 │   │                          FileSystem/, Postgres/); → Application
 │   ├── Librarian.Ingest       worker host, scans the inbox on a timer; → Application, Adapters
@@ -25,6 +27,25 @@ dotnet/                        the .NET app
 
 References point one way: hosts → Application and Adapters; Adapters → Application. Two programs,
 each its own container at deploy: only Ingest gets the inbox mounted; Api cannot write to the library.
+
+## Domain
+
+The domain classes live in Application, in `Domain/`; no project of their own. Rules for every
+domain class:
+
+- Created only through a factory named `Create` (`Document.Create(...)`, `Ingestion.Create(...)`);
+  the constructor is private (a private parameterless one exists for EF Core).
+- No public setters anywhere. State changes through methods named for what they do.
+- Rich: the rules about a class's state live in the class, not in the handler.
+- Enums are stored and read as strings (`HasConversion<string>()`), never as numbers.
+- Plain C#: no base classes, no attributes for persistence. EF Core maps them from configuration.
+
+Database access is EF Core used directly from the handlers: one `DbContext` in Application
+(`Domain/LibrarianDbContext.cs`), no repository or unit of work on top. The context applies the
+`IModelConfiguration`s it is given; the mapping that needs vendor types (the `vector` and
+`tsvector` columns are Npgsql types) lives in Adapters, in `Postgres/`. Npgsql is wired in
+Adapters (`AddPostgres`: `AddDbContext` with `UseNpgsql` + `UseVector`, migrations assembly
+`Librarian.Adapters`).
 
 ## Conventions
 
@@ -42,14 +63,16 @@ Config, branches, packages and the build are below.
 
 ## Config
 
-Each program reads `appsettings.json` (only what is identical in every environment), then
-`appsettings.{Environment}.json`, then environment variables (`__` is `:`; env wins). No `.env`
-files. The dev overlay `appsettings.Development.json` is gitignored (it holds an absolute machine
-path); its keys:
+Each program reads `appsettings.json` — only what is identical in every environment, never a
+connection string, machine path or secret — then `appsettings.{Environment}.json`, then
+environment variables (`__` is `:`; env wins). No `.env` files. Anything that can change from
+one environment to another (a connection string among them) lives only in the overlay or the
+environment. The dev overlay `appsettings.Development.json` is gitignored; its keys:
 
     // src/Librarian.Ingest/appsettings.Development.json
     { "Librarian": { "Root": "/home/USER/.local/share/librarian-dotnet-dev" },
-      "Mistral": { "ApiKey": "..." } }
+      "Mistral": { "ApiKey": "..." },
+      "ConnectionStrings": { "Postgres": "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian;Password=librarian" } }
 
     // src/Librarian.Api/appsettings.Development.json
     { "Urls": "http://127.0.0.1:5080",
@@ -70,8 +93,16 @@ From a shell with cwd `dotnet/`: `dotnet restore --locked-mode`, `dotnet build`,
 The .NET 10 SDK lives in `~/.dotnet` on the dev machines: it must be on `PATH` with `DOTNET_ROOT`
 set for the app hosts.
 
-Migrations: EF Core in Adapters, run as their own step (a migrations bundle, owner login), never
-on an app's start. Roles, grants, extensions: SQL in `infra/postgres/`.
+Migrations: EF Core in Adapters (`Postgres/Migrations/`), run as their own step, never on an app's
+start. Dev, against the compose Postgres:
+
+    cd dotnet
+    DOTNET_ENVIRONMENT=Development dotnet ef database update \
+      --project src/Librarian.Adapters --startup-project src/Librarian.Ingest \
+      --connection "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian;Password=librarian"
+
+Deploy runs the migrations bundle as its own step, as the owner login. Roles, grants, extensions:
+SQL in `infra/postgres/` (`vector` and `unaccent` come from there, not from a migration).
 
 ## Branches
 

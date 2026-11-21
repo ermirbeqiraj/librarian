@@ -1,6 +1,5 @@
-using Librarian.Adapters.Postgres;
+using Librarian.Adapters;
 using Librarian.Api.Features.Health;
-using Microsoft.EntityFrameworkCore;
 
 namespace Librarian.Api;
 
@@ -20,8 +19,8 @@ public static class ProgramExtensions
 
     private static IServiceCollection AddDb(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<LibrarianDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("Postgres")));
-        return services;
+        var connectionString = configuration.GetConnectionString("Postgres")
+            ?? throw new InvalidOperationException("ConnectionStrings:Postgres is not set.");
+        return services.AddPostgres(connectionString);
     }
 }

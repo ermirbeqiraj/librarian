@@ -6,12 +6,12 @@ namespace Librarian.Tests;
 
 public sealed class ApplicationProjectTests
 {
-    private static readonly Regex DatabasePackage = new(
-        @"EntityFrameworkCore|Npgsql|Pomelo|SqlClient|Dapper",
+    private static readonly Regex VendorPackage = new(
+        @"Npgsql|Pgvector|Pomelo|SqlClient|Dapper|OpenAI",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     [Fact]
-    public void Application_references_no_other_librarian_project_and_no_database_package()
+    public void Application_references_only_abstractions_no_vendor_package_and_no_other_librarian_project()
     {
         var csproj = Path.Combine(FindSolutionRoot(), "src", "Librarian.Application", "Librarian.Application.csproj");
         var doc = XDocument.Load(csproj);
@@ -20,19 +20,20 @@ public sealed class ApplicationProjectTests
         Assert.True(File.Exists(csproj));
         Assert.Empty(doc.Descendants(ns + "ProjectReference"));
 
-        var databasePackages = doc.Descendants(ns + "PackageReference")
+        var vendorPackages = doc.Descendants(ns + "PackageReference")
             .Select(p => (string?)p.Attribute("Include") ?? string.Empty)
-            .Where(id => DatabasePackage.IsMatch(id))
+            .Where(id => VendorPackage.IsMatch(id))
             .ToList();
-        Assert.Empty(databasePackages);
+        Assert.Empty(vendorPackages);
 
         var assembly = Assembly.Load("Librarian.Application");
         var references = assembly.GetReferencedAssemblies().Select(r => r.Name ?? string.Empty).ToList();
         Assert.DoesNotContain(references, name => name.StartsWith("Librarian.", StringComparison.Ordinal));
-        Assert.DoesNotContain(references, name => DatabasePackage.IsMatch(name));
+        Assert.DoesNotContain(references, name => VendorPackage.IsMatch(name));
+        Assert.DoesNotContain(references, name => name.StartsWith("Microsoft.EntityFrameworkCore.", StringComparison.Ordinal));
     }
 
-    private static string FindSolutionRoot()
+    internal static string FindSolutionRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Librarian.slnx")))

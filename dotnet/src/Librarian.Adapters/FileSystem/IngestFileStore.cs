@@ -14,9 +14,6 @@ public sealed class IngestFileStore : IIngestFileStore
         Directory.CreateDirectory(paths.ProcessedPath);
     }
 
-    public async Task WriteResultAsync(string fileName, string json, CancellationToken cancellationToken)
-        => await File.WriteAllTextAsync(Path.Combine(_paths.ResultsPath, fileName + ".json"), json, cancellationToken);
-
     public Task MoveToProcessedAsync(string path, CancellationToken cancellationToken)
     {
         var destination = Path.Combine(_paths.ProcessedPath, Path.GetFileName(path));
@@ -24,6 +21,12 @@ public sealed class IngestFileStore : IIngestFileStore
             File.Delete(path);
         else
             File.Move(path, destination);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(string path, CancellationToken cancellationToken)
+    {
+        File.Delete(path);
         return Task.CompletedTask;
     }
 }

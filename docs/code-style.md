@@ -5,18 +5,21 @@ tests and this file are the contract. Build, packages and config: [architecture.
 
 ## Projects and the direction
 
-- `Librarian.Application`: the logic and its ports. References nothing.
+- `Librarian.Application`: the logic, its ports and the domain. References only abstractions:
+  EF Core, Microsoft.Extensions.AI, MAF — never a vendor package (Npgsql, Pgvector, OpenAI).
 - `Librarian.Adapters`: one implementation per technology, adapting to the ports. → Application.
 - `Librarian.Ingest`, `Librarian.Api`: the host programs. → Application and Adapters.
 - `tests/Librarian.Tests`: mirrors the code; references everything.
 - Application's isolation is enforced by a test that fails on any `ProjectReference`,
-  `Librarian.*` assembly reference, or database package.
+  `Librarian.*` assembly reference, vendor package or vendor assembly reference, and on any
+  `Microsoft.EntityFrameworkCore.*` assembly but the bare `Microsoft.EntityFrameworkCore`.
 
 ## Application
 
 - `Ports/{Feature}/`: every port the app declares, one interface per file, each interface carrying
   its own models in the same file (`Ports/Ingest/IDocumentReader.cs` holds the interface and its
-  `Page`). Ports are named by role, never by vendor: `IDocumentReader`, not `IMistralOcr`.
+  `Page`). Ports are named by role, never by vendor: `IDocumentReader`, not `IMistralOcr`. A port
+  is an interface an adapter in Adapters implements — nothing else lives in `Ports/`.
 - `Handlers/{Feature}/`: the verticals, the brain — one directory is one feature
   (`Handlers/Ingest/`), holding `Handler.cs` (the flow), `Options.cs` (the config sections it
   loads, validated before anything runs) and a step that grows gets a subfolder
@@ -24,11 +27,17 @@ tests and this file are the contract. Build, packages and config: [architecture.
 - `Services/`: application-level services shared across features, so logic is neither duplicated
   nor spread. It appears when the first such service exists — no folder ahead of its need.
 - The application handler is the flow: a command/its handler in the mediator style, plain C#,
-  no mediator package. The host calls it through its interface.
+  no mediator package. A handler is never a port and gets no interface: its registration lives
+  next to it, in `Handlers/{Feature}/DependencyInjectionExtensions.cs`, and the host resolves the
+  concrete handler (`AddIngestHandler()`, `AddStoreHandler()`); the handler's own models ride
+  next to it (`Handlers/Ingest/IngestFile.cs`). Tests substitute the handler's ports, not the
+  handler.
 - Options: one class per config section, `Validate()` called before anything runs. No defaults in
   an options class: a value the config does not set fails at start, named by its key — an unset
-  option is never silently a literal. What is identical everywhere lives in `appsettings.json`;
-  machine paths and secrets only in the overlaid machine settings or environment.
+  option is never silently a literal. `appsettings.json` is reserved for what is identical in
+  every environment; anything that can change from one environment to another — a connection
+  string, a machine path, a secret — lives only in the overlaid machine settings or the
+  environment, never in `appsettings.json`.
 - Facts kept as data, not code: a catalog is an embedded JSON resource next to the feature, read
   by a small loader class. A name is added by editing the file.
 - Results are immutable records. One shared `JsonSerializerOptions` per vertical, source-generated

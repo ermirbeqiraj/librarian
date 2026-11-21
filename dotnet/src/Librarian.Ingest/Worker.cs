@@ -1,12 +1,17 @@
+using Librarian.Application.Domain;
 using Librarian.Application.Handlers.Ingest;
 using Librarian.Application.Ports.Ingest;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Librarian.Ingest;
 
 public sealed class Worker(
     ILogger<Worker> logger,
     LibrarianOptions librarianOptions,
-    IIngestHandler handler) : BackgroundService
+    IngestOptions ingestOptions,
+    IIngestFileStore fileStore,
+    IServiceScopeFactory scopeFactory) : BackgroundService
 {
     private static readonly TimeSpan UnchangedFor = TimeSpan.FromSeconds(60);
 
@@ -55,7 +60,18 @@ public sealed class Worker(
                     && now - previous.LastWriteUtc >= UnchangedFor)
                 {
                     seen.Remove(path);
+                    using var scope = scopeFactory.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<LibrarianDbContext>();
+                    var attempts = await db.Ingestions
+                        .CountAsync(i => i.FileName == info.Name && i.FileSize == info.Length, stoppingToken);
+                    if (attempts >= ingestOptions.MaxAttempts)
+                    {
+                        logger.LogWarning("Giving up on {File}: {Attempts} attempts are already banked", info.Name, attempts);
+                        await fileStore.MoveToProcessedAsync(path, stoppingToken);
+                        continue;
+                    }
                     logger.LogInformation("Taking {File} ({Size} bytes)", info.Name, info.Length);
+                    var handler = scope.ServiceProvider.GetRequiredService<IngestHandler>();
                     await handler.HandleAsync(new IngestFile(path, info.Name, info.Length), stoppingToken);
                 }
                 else

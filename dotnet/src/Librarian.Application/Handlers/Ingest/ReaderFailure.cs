@@ -12,3 +12,4 @@ public static class ReaderFailure
         return characters == 0 || characters / pages.Count < minCharsPerPage;
     }
 }
+

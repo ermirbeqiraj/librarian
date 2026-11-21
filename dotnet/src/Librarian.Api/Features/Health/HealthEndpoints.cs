@@ -1,4 +1,4 @@
-using Librarian.Adapters.Postgres;
+using Librarian.Application.Domain;
 
 namespace Librarian.Api.Features.Health;
 

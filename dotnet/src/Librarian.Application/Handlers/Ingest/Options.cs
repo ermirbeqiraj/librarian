@@ -39,12 +39,14 @@ public sealed class LibrarianOptions
 
 public sealed class IngestOptions
 {
+    public int MaxAttempts { get; set; }
     public DoclingOptions Docling { get; set; } = null!;
     public OcrOptions Ocr { get; set; } = null!;
     public ExtractOptions Extract { get; set; } = null!;
 
     public void Validate()
     {
+        Positive("Ingest:MaxAttempts", MaxAttempts);
         Required("Ingest:Docling", Docling);
         Required("Ingest:Ocr", Ocr);
         Required("Ingest:Extract", Extract);
@@ -113,6 +115,7 @@ public sealed class IngestOptions
         public int MaxRounds { get; set; }
         public int HeadPages { get; set; }
         public int TailPages { get; set; }
+        public int ParseRetries { get; set; }
 
         public void Validate()
         {
@@ -122,6 +125,7 @@ public sealed class IngestOptions
             Positive("Ingest:Extract:MaxRounds", MaxRounds);
             Positive("Ingest:Extract:HeadPages", HeadPages);
             Positive("Ingest:Extract:TailPages", TailPages);
+            Positive("Ingest:Extract:ParseRetries", ParseRetries);
         }
     }
 }
