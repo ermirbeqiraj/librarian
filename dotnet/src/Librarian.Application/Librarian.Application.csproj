@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The logic and its ports. References nothing: tests/Librarian.Tests enforces it. -->
+
+</Project>

@@ -1,0 +1,10 @@
+.env
+.claude/
+CLAUDE.local.md
+
+# .NET build output
+dotnet/**/bin/
+dotnet/**/obj/
+
+# Per-machine dev settings (hold absolute paths)
+appsettings.Development.json

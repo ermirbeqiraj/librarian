@@ -1,0 +1,114 @@
+{
+  // The dev services in infra/compose.yaml.
+  "version": "2.0.0",
+  "options": {
+    "cwd": "${workspaceFolder}/infra",
+    "shell": { "executable": "bash", "args": ["-c"] }
+  },
+  "presentation": { "reveal": "always", "clear": true },
+  "tasks": [
+    {
+      "label": "dotnet: build",
+      "detail": "Build the .NET solution; restore runs in locked mode",
+      "type": "shell",
+      "command": "dotnet build Librarian.slnx",
+      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "presentation": { "reveal": "always", "clear": true },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "dotnet: test",
+      "detail": "Run the .NET tests",
+      "type": "shell",
+      "command": "dotnet test Librarian.slnx",
+      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "presentation": { "reveal": "always", "clear": true },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "infra: up",
+      "detail": "Start every service and wait until each is healthy",
+      "type": "shell",
+      "command": "docker compose up -d --wait --remove-orphans",
+      "problemMatcher": []
+    },
+    {
+      "label": "infra: stop",
+      "detail": "Stop every service; the data stays",
+      "type": "shell",
+      "command": "docker compose stop",
+      "problemMatcher": []
+    },
+    {
+      "label": "infra: status",
+      "detail": "Each service's state and health",
+      "type": "shell",
+      "command": "docker compose ps -a",
+      "problemMatcher": []
+    },
+    {
+      "label": "infra: logs",
+      "detail": "Follow one service's log",
+      "type": "shell",
+      "command": "docker compose logs -f --tail 200 ${input:service}",
+      "problemMatcher": []
+    },
+    {
+      "label": "infra: reset",
+      "detail": "Start fresh: an empty Postgres, new containers; keeps the downloaded model",
+      "type": "shell",
+      "command": "[ '${input:confirmReset}' = yes ] || { echo 'Cancelled.'; exit 0; }; docker compose down --remove-orphans && docker volume rm -f librarian_pgdata && docker compose up -d --wait",
+      "problemMatcher": []
+    },
+    {
+      "label": "postgres: restart",
+      "detail": "A new container on the same data",
+      "type": "shell",
+      "command": "docker compose up -d --wait --force-recreate postgres",
+      "problemMatcher": []
+    },
+    {
+      "label": "postgres: wipe",
+      "detail": "Delete every database and start an empty one, with only the extensions",
+      "type": "shell",
+      "command": "[ '${input:confirmWipe}' = yes ] || { echo 'Cancelled.'; exit 0; }; docker compose rm -sf postgres && docker volume rm -f librarian_pgdata && docker compose up -d --wait postgres",
+      "problemMatcher": []
+    },
+    {
+      "label": "docling: restart",
+      "detail": "A new container; docling keeps nothing",
+      "type": "shell",
+      "command": "docker compose up -d --wait --force-recreate docling",
+      "problemMatcher": []
+    },
+    {
+      "label": "bge-m3: restart",
+      "detail": "A new container; the model stays downloaded",
+      "type": "shell",
+      "command": "docker compose up -d --wait --force-recreate bge-m3",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "service",
+      "type": "pickString",
+      "description": "Which service?",
+      "options": ["postgres", "docling", "bge-m3"]
+    },
+    {
+      "id": "confirmWipe",
+      "type": "pickString",
+      "description": "Delete the dev databases (librarian, librarian_test)? Re-ingesting costs time and paid calls.",
+      "options": ["no", "yes"],
+      "default": "no"
+    },
+    {
+      "id": "confirmReset",
+      "type": "pickString",
+      "description": "Reset everything? The dev databases are deleted.",
+      "options": ["no", "yes"],
+      "default": "no"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Librarian.Ingest": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

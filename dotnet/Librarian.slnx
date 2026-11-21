@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Librarian.Application/Librarian.Application.csproj" />
+    <Project Path="src/Librarian.Adapters/Librarian.Adapters.csproj" />
+    <Project Path="src/Librarian.Ingest/Librarian.Ingest.csproj" />
+    <Project Path="src/Librarian.Api/Librarian.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Librarian.Tests/Librarian.Tests.csproj" />
+  </Folder>
+</Solution>
