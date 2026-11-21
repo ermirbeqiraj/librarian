@@ -4,10 +4,6 @@ using System.Xml.Linq;
 
 namespace Librarian.Tests;
 
-/// <summary>
-/// Application is the logic and its ports: it must not reference another Librarian project
-/// (the direction is enforced top-down) nor any database package (those live in Adapters).
-/// </summary>
 public sealed class ApplicationProjectTests
 {
     private static readonly Regex DatabasePackage = new(
@@ -19,7 +15,7 @@ public sealed class ApplicationProjectTests
     {
         var csproj = Path.Combine(FindSolutionRoot(), "src", "Librarian.Application", "Librarian.Application.csproj");
         var doc = XDocument.Load(csproj);
-        XNamespace ns = doc.Root!.Name.Namespace;
+        XNamespace ns = doc.Root?.Name.Namespace ?? throw new InvalidOperationException("the csproj has no root element.");
 
         Assert.True(File.Exists(csproj));
         Assert.Empty(doc.Descendants(ns + "ProjectReference"));
@@ -30,7 +26,6 @@ public sealed class ApplicationProjectTests
             .ToList();
         Assert.Empty(databasePackages);
 
-        // Same check on the built assembly: no Librarian.* and no database assembly reference.
         var assembly = Assembly.Load("Librarian.Application");
         var references = assembly.GetReferencedAssemblies().Select(r => r.Name ?? string.Empty).ToList();
         Assert.DoesNotContain(references, name => name.StartsWith("Librarian.", StringComparison.Ordinal));

@@ -1,5 +1,7 @@
 {
   "files.exclude": {
-    ".claude": true
+    ".claude": true,
+    "**/bin": true,
+    "**/obj": true
   }
 }

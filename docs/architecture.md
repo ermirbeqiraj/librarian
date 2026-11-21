@@ -13,8 +13,11 @@ dotnet/                        the .NET app
 ├── Directory.Packages.props   exact package versions
 ├── nuget.config               nuget.org only, signatures required, trusted signers pinned
 ├── src/
-│   ├── Librarian.Application  the logic and its ports; references nothing (a test enforces it)
-│   ├── Librarian.Adapters     one directory per implementation, e.g. Postgres/; → Application
+│   ├── Librarian.Application  the brain: Ports/{Feature}/, Handlers/{Feature}/,
+│   │                          Services/ when the first shared service exists;
+│   │                          references nothing (a test enforces it)
+│   ├── Librarian.Adapters     one directory per technology (Docling/, Mistral/,
+│   │                          FileSystem/, Postgres/); → Application
 │   ├── Librarian.Ingest       worker host, scans the inbox on a timer; → Application, Adapters
 │   └── Librarian.Api          ASP.NET Core host; → Application, Adapters
 └── tests/Librarian.Tests      xUnit v3
@@ -25,12 +28,8 @@ each its own container at deploy: only Ingest gets the inbox mounted; Api cannot
 
 ## Conventions
 
-- Api holds `Features/` — e.g. a feature is `Request.cs`, `Response.cs`, the endpoint mapping
-  (minimal APIs).
-- Application holds the logic in verticals and declares the ports: an interface plus its own
-  request/response types.
-- Adapters implement those ports and return only Application types, never vendor types. Ports are
-  named by role, not vendor.
+Code shape, where things belong and the no-comment rule: [code-style.md](code-style.md).
+Config, branches, packages and the build are below.
 
 ## Packages
 
@@ -49,7 +48,8 @@ files. The dev overlay `appsettings.Development.json` is gitignored (it holds an
 path); its keys:
 
     // src/Librarian.Ingest/appsettings.Development.json
-    { "Librarian": { "Root": "/home/USER/.local/share/librarian-dotnet-dev" } }
+    { "Librarian": { "Root": "/home/USER/.local/share/librarian-dotnet-dev" },
+      "Mistral": { "ApiKey": "..." } }
 
     // src/Librarian.Api/appsettings.Development.json
     { "Urls": "http://127.0.0.1:5080",

@@ -1,9 +1,7 @@
 using Librarian.Adapters.Postgres;
-using Microsoft.EntityFrameworkCore;
 
 namespace Librarian.Api.Features.Health;
 
-/// <summary>GET /health: checks Postgres through the DbContext. No request body, so no Request.cs.</summary>
 public static class HealthEndpoints
 {
     public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder app)
@@ -21,7 +19,7 @@ public static class HealthEndpoints
         }
         catch (Exception)
         {
-            // Postgres down or unreachable: unhealthy.
+
         }
 
         return healthy

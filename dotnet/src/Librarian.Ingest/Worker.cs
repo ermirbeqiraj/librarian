@@ -1,31 +1,72 @@
+using Librarian.Application.Handlers.Ingest;
+using Librarian.Application.Ports.Ingest;
+
 namespace Librarian.Ingest;
 
-/// <summary>
-/// Scans the inbox on a timer and logs each tick, so the run is visible. The inbox is mounted only
-/// into this program; the Api never sees the file system. The scan itself comes with task 03.
-/// </summary>
-public sealed class Worker(ILogger<Worker> logger, IConfiguration configuration) : BackgroundService
+public sealed class Worker(
+    ILogger<Worker> logger,
+    LibrarianOptions librarianOptions,
+    IIngestHandler handler) : BackgroundService
 {
+    private static readonly TimeSpan UnchangedFor = TimeSpan.FromSeconds(60);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var root = configuration["Librarian:Root"]
-            ?? throw new InvalidOperationException("Librarian:Root is not configured (appsettings or env var Librarian__Root).");
-        var inbox = Path.Combine(root, "inbox");
-        Directory.CreateDirectory(inbox);
-        logger.LogInformation("Ingest started; watching {Inbox}", inbox);
+        Directory.CreateDirectory(librarianOptions.InboxPath);
+        logger.LogInformation("Ingest started; watching {Inbox}", librarianOptions.InboxPath);
 
-        var interval = TimeSpan.FromSeconds(configuration.GetValue("Librarian:ScanIntervalSeconds", 30));
+        var interval = TimeSpan.FromSeconds(librarianOptions.ScanIntervalSeconds);
+        var seen = new Dictionary<string, (long Size, DateTime LastWriteUtc)>();
         using var timer = new PeriodicTimer(interval);
         try
         {
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                logger.LogInformation("Inbox scan tick at {Time:o}", DateTimeOffset.UtcNow);
+                await ScanAsync(seen, stoppingToken);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            // Normal shutdown.
+        }
+    }
+
+    private async Task ScanAsync(Dictionary<string, (long Size, DateTime LastWriteUtc)> seen, CancellationToken stoppingToken)
+    {
+        string[] files;
+        try
+        {
+            files = [.. Directory.EnumerateFiles(librarianOptions.InboxPath)];
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Scanning the inbox failed: {Message}", ex.Message);
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var path in files)
+        {
+            try
+            {
+                var info = new FileInfo(path);
+                var state = (info.Length, info.LastWriteTimeUtc);
+                if (seen.TryGetValue(path, out var previous)
+                    && previous == state
+                    && now - previous.LastWriteUtc >= UnchangedFor)
+                {
+                    seen.Remove(path);
+                    logger.LogInformation("Taking {File} ({Size} bytes)", info.Name, info.Length);
+                    await handler.HandleAsync(new IngestFile(path, info.Name, info.Length), stoppingToken);
+                }
+                else
+                {
+                    seen[path] = state;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !stoppingToken.IsCancellationRequested)
+            {
+                logger.LogError(ex, "Taking {File} failed: {Message}", Path.GetFileName(path), ex.Message);
+            }
         }
     }
 }

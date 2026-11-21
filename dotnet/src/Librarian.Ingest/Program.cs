@@ -6,6 +6,6 @@ var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
     ContentRootPath = AppContext.BaseDirectory,
 });
 
-builder.Services.AddHostedService<Worker>();
+builder.Services.AddIngestServices(builder.Configuration);
 
 await builder.Build().RunAsync();
