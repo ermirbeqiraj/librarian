@@ -8,6 +8,7 @@ using Librarian.Application.Handlers.Ingest;
 using Librarian.Application.Handlers.Ingest.Extract;
 using Librarian.Application.Handlers.Store;
 using Librarian.Application.Ports.Ingest;
+using Librarian.Application.Ports.Retrieve;
 using Librarian.Application.Ports.Store;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,8 @@ public static class DependencyInjectionExtensions
         services.AddSingleton<IModelConfiguration, PostgresModelConfiguration>();
         services.AddDbContext<LibrarianDbContext>(options => options
             .UseNpgsql(connectionString, npgsql => npgsql.UseVector().MigrationsAssembly("Librarian.Adapters")));
+        services.AddScoped<IVectorSearch, PostgresVectorSearch>();
+        services.AddScoped<IKeywordSearch, PostgresKeywordSearch>();
         return services;
     }
 
