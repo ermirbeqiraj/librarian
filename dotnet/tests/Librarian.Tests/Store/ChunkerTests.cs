@@ -38,6 +38,41 @@ public sealed class ChunkerTests
     }
 
     [Fact]
+    public async Task A_table_within_the_budget_sits_whole_in_one_chunk()
+    {
+        var chunker = Words(100);
+        var table = "| h1 | h2 |\n| --- | --- |\n| a | b |\n| c | d |";
+        var chunks = await chunker.ChunkAsync("h", table, TestContext.Current.CancellationToken);
+        var chunk = Assert.Single(chunks);
+        Assert.Equal("h\n" + table, chunk);
+    }
+
+    [Fact]
+    public async Task An_oversized_table_splits_at_rows_and_repeats_the_header_in_every_chunk()
+    {
+        var chunker = Words(16);
+        var table = "| h1 | h2 |\n| --- | --- |\n| a | b |\n| c | d |\n| e | f |";
+        var chunks = await chunker.ChunkAsync("h", table, TestContext.Current.CancellationToken);
+        Assert.True(chunks.Count > 1);
+        Assert.All(chunks, c => Assert.Contains("| h1 | h2 |", c));
+        Assert.All(chunks, c => Assert.Contains("| --- | --- |", c));
+        Assert.Contains("| a | b |", chunks[0]);
+        Assert.DoesNotContain("| c | d |", chunks[0]);
+        Assert.Contains("| c | d |", chunks[1]);
+        Assert.All(chunks, c => Assert.True(c.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 16));
+    }
+
+    [Fact]
+    public async Task A_list_sits_together_in_one_chunk()
+    {
+        var chunker = Words(100);
+        var list = "- one\n- two\n- three";
+        var chunks = await chunker.ChunkAsync("h", list, TestContext.Current.CancellationToken);
+        var chunk = Assert.Single(chunks);
+        Assert.Equal("h\n" + list, chunk);
+    }
+
+    [Fact]
     public async Task A_header_over_the_budget_throws()
     {
         var chunker = Words(2);
