@@ -24,7 +24,7 @@ public static class ProgramExtensions
             ?? throw new InvalidOperationException("ConnectionStrings:Postgres is not set.");
         RequireLocalDatabase(connectionString);
 
-        services.AddPostgres(connectionString);
+        services.AddPostgres(connectionString).AddPostgresSearch();
         services.AddSingleton(store);
         services.AddSingleton(evals);
         services.AddTei(store);

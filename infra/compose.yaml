@@ -47,6 +47,55 @@ services:
       timeout: 5s
       retries: 30
 
+  ingest:
+    build:
+      context: ../dotnet
+      dockerfile: Dockerfile.dev
+    image: librarian-dotnet-dev
+    command: ["Librarian.Ingest.dll"]
+    environment:
+      # Config comes from the app's own files, carried by the mounted build output.
+      DOTNET_ENVIRONMENT: Development
+    # Host network: the config files' 127.0.0.1 links reach the compose services.
+    network_mode: host
+    volumes:
+      # The host's build output is the app; a rebuild needs only a container restart.
+      - ../dotnet/src/Librarian.Ingest/bin/Debug/net10.0:/app:ro
+      # The dev root at the same absolute path — ingest is the only app that writes the library.
+      - ${HOME}/.local/share/librarian-dotnet-dev:${HOME}/.local/share/librarian-dotnet-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No HTTP endpoint: the health is its log tick; a restart re-scans the inbox.
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ../dotnet
+      dockerfile: Dockerfile.dev
+    image: librarian-dotnet-dev
+    command: ["Librarian.Api.dll"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # Bridge network, so the published port answers on the real host; on the bridge
+      # the app's files' 127.0.0.1 would point at itself — env wins over files.
+      Urls: http://0.0.0.0:5080
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=librarian;Username=librarian;Password=librarian
+    ports:
+      - "127.0.0.1:5080:5080"
+    volumes:
+      # No library mount: Api cannot write to the library (docs/architecture.md).
+      - ../dotnet/src/Librarian.Api/bin/Debug/net10.0:/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
 volumes:
   pgdata:
   hf-models:

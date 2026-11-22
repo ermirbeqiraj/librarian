@@ -26,6 +26,15 @@
       "problemMatcher": "$msCompile"
     },
     {
+      "label": "dotnet: migrate",
+      "detail": "EF Core migrations as their own host-side step against the compose Postgres; the connection string comes from the gitignored dev overlay — never on an app's start",
+      "type": "shell",
+      "command": "DOTNET_ENVIRONMENT=Development dotnet ef database update --project src/Librarian.Adapters --startup-project src/Librarian.Ingest",
+      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "presentation": { "reveal": "always", "clear": true },
+      "problemMatcher": []
+    },
+    {
       "label": "librarian:evals: search vector",
       "detail": "The search eval in vector mode: embeds each question via TEI, scores the ranks",
       "type": "shell",
@@ -114,6 +123,34 @@
       "type": "shell",
       "command": "docker compose up -d --wait --force-recreate bge-m3",
       "problemMatcher": []
+    },
+    {
+      "label": "app: ingest restart",
+      "detail": "Recreate the ingest container on the mounted build output; the restart re-scans the inbox",
+      "type": "shell",
+      "command": "docker compose up -d --wait --force-recreate ingest",
+      "problemMatcher": []
+    },
+    {
+      "label": "app: api restart",
+      "detail": "Recreate the api container on the mounted build output",
+      "type": "shell",
+      "command": "docker compose up -d --wait --force-recreate api",
+      "problemMatcher": []
+    },
+    {
+      "label": "app: ingest build+restart",
+      "detail": "Host build, then recreate the ingest container — one task, no image rebuild",
+      "type": "shell",
+      "command": "cd ../dotnet && dotnet build Librarian.slnx && cd ../infra && docker compose up -d --wait --force-recreate ingest",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "app: api build+restart",
+      "detail": "Host build, then recreate the api container — one task, no image rebuild",
+      "type": "shell",
+      "command": "cd ../dotnet && dotnet build Librarian.slnx && cd ../infra && docker compose up -d --wait --force-recreate api",
+      "problemMatcher": "$msCompile"
     }
   ],
   "inputs": [
@@ -121,7 +158,7 @@
       "id": "service",
       "type": "pickString",
       "description": "Which service?",
-      "options": ["postgres", "docling", "bge-m3"]
+      "options": ["postgres", "docling", "bge-m3", "ingest", "api"]
     },
     {
       "id": "confirmWipe",

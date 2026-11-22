@@ -25,6 +25,11 @@ public static class DependencyInjectionExtensions
         services.AddSingleton<IModelConfiguration, PostgresModelConfiguration>();
         services.AddDbContext<LibrarianDbContext>(options => options
             .UseNpgsql(connectionString, npgsql => npgsql.UseVector().MigrationsAssembly("Librarian.Adapters")));
+        return services;
+    }
+
+    public static IServiceCollection AddPostgresSearch(this IServiceCollection services)
+    {
         services.AddScoped<IVectorSearch, PostgresVectorSearch>();
         services.AddScoped<IKeywordSearch, PostgresKeywordSearch>();
         return services;
