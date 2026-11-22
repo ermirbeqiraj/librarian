@@ -11,7 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Librarian.Tests.Postgres;
+namespace Librarian.PostgresTests;
 
 [Collection("Postgres")]
 public sealed class StoreWorkerTests
@@ -69,7 +69,7 @@ public sealed class StoreWorkerTests
         public Fixture()
         {
             var config = new ConfigurationBuilder()
-                .SetBasePath(Path.Combine(ApplicationProjectTests.FindSolutionRoot(), "src", "Librarian.Ingest"))
+                .SetBasePath(Path.Combine(SolutionRoot.Find(), "src", "Librarian.Ingest"))
                 .AddJsonFile("appsettings.json", optional: false)
                 .AddJsonFile("appsettings.Development.json", optional: true)
                 .AddEnvironmentVariables()

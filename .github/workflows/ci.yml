@@ -14,8 +14,9 @@ permissions:
 
 jobs:
   tests:
-    # Unit tests only: the Postgres-backed tests (the Postgres collection and the ingest
-    # worker round-trip) run locally against the compose stack, never here.
+    # Unit tests only: the Postgres tests are their own project (tests/Librarian.PostgresTests,
+    # run locally against the compose stack), and the reader adapter tests call the live
+    # docling and OCR — neither runs here.
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     steps:
@@ -36,8 +37,6 @@ jobs:
       - name: Unit tests
         run: >-
           dotnet run --project tests/Librarian.Tests --no-build --
-          -namespace- Librarian.Tests.Postgres
-          -class- Librarian.Tests.Ingest.WorkerTests
           -class- Librarian.Tests.Ingest.ReaderAdapterTests
         working-directory: dotnet
 

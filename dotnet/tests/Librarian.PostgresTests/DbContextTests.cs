@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Librarian.Tests.Postgres;
+namespace Librarian.PostgresTests;
 
 [Collection("Postgres")]
 public sealed class DbContextTests
@@ -13,7 +13,7 @@ public sealed class DbContextTests
     private static ServiceProvider Build()
     {
         var config = new ConfigurationBuilder()
-            .SetBasePath(Path.Combine(ApplicationProjectTests.FindSolutionRoot(), "src", "Librarian.Ingest"))
+            .SetBasePath(Path.Combine(SolutionRoot.Find(), "src", "Librarian.Ingest"))
             .AddJsonFile("appsettings.json", optional: false)
             .AddJsonFile("appsettings.Development.json", optional: true)
             .AddEnvironmentVariables()

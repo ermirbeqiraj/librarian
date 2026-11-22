@@ -7,6 +7,7 @@
     <Project Path="src/Librarian.Api/Librarian.Api.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Librarian.PostgresTests/Librarian.PostgresTests.csproj" />
     <Project Path="tests/Librarian.Tests/Librarian.Tests.csproj" />
   </Folder>
 </Solution>
