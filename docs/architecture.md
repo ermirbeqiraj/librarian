@@ -1,8 +1,8 @@
 # Architecture
 
 The in-repo map of how this project is driven. The product description and the task series live
-outside this public repo (see `CLAUDE.local.md`). `python/` is the first version, reference only
-until the cutover; `infra/` is the shared compose for the local services.
+outside this public repo (see `CLAUDE.local.md`). `infra/` is the compose for the local services
+and the database setup.
 
 ## Layout
 

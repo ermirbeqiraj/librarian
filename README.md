@@ -11,7 +11,7 @@ code and which by a model. Other agents can ask it too, over MCP.
 
 | | |
 |---|---|
-| [`python/`](python/README.md) | The first version, in Python. Kept for reference while it's rewritten in .NET, then removed. |
+| [`dotnet/`](dotnet/) | The Librarian: a .NET app — the logic and its ports, the adapters, the Ingest and Api hosts, the tests. |
 | `infra/` | Compose for the local services (Postgres, docling, the embedder), and the database setup. |
 
 ## License
