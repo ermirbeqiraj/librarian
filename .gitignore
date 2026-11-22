@@ -1,6 +1,6 @@
 .env
 .claude/
-CLAUDE.local.md
+AGENTS.local.md
 
 # .NET build output
 dotnet/**/bin/

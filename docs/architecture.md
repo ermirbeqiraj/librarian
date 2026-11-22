@@ -1,7 +1,7 @@
 # Architecture
 
 The in-repo map of how this project is driven. The product description and the task series live
-outside this public repo (see `CLAUDE.local.md`). `infra/` is the compose for the local services
+outside this public repo (see `AGENTS.local.md`). `infra/` is the compose for the local services
 and the database setup.
 
 ## Layout
@@ -156,4 +156,4 @@ the reader role feeds only the ask's `sql` tool.
 
 ## Branches
 
-Work branches off `develop`, one PR per task, local only until the cutover (see `CLAUDE.md`).
+Work branches off `develop`, one PR per task, local only until the cutover (see `AGENTS.md`).
