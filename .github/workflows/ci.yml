@@ -38,6 +38,7 @@ jobs:
           dotnet run --project tests/Librarian.Tests --no-build --
           -namespace- Librarian.Tests.Postgres
           -class- Librarian.Tests.Ingest.WorkerTests
+          -class- Librarian.Tests.Ingest.ReaderAdapterTests
         working-directory: dotnet
 
   image:
