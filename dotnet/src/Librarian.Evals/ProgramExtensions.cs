@@ -1,4 +1,6 @@
 using Librarian.Adapters;
+using Librarian.Application.Handlers.Ingest;
+using Librarian.Application.Handlers.Retrieve;
 using Librarian.Application.Handlers.Store;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +16,9 @@ public static class ProgramExtensions
         store.Validate();
         var evals = configuration.GetSection("Evals").Get<EvalsOptions>() ?? new EvalsOptions();
         evals.Validate();
+        var refine = configuration.GetSection("Refine").Get<RefineOptions>() ?? new RefineOptions();
+        refine.Validate();
+        var mistral = configuration.GetSection("Mistral").Get<MistralOptions>() ?? new MistralOptions();
 
         var connectionString = configuration.GetConnectionString("Postgres")
             ?? throw new InvalidOperationException("ConnectionStrings:Postgres is not set.");
@@ -23,6 +28,8 @@ public static class ProgramExtensions
         services.AddSingleton(store);
         services.AddSingleton(evals);
         services.AddTei(store);
+        services.AddLibrarianRefine(mistral, refine);
+        services.AddQueryRefiner();
         return services;
     }
 

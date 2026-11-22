@@ -6,6 +6,7 @@ using Librarian.Adapters.Tei;
 using Librarian.Application.Domain;
 using Librarian.Application.Handlers.Ingest;
 using Librarian.Application.Handlers.Ingest.Extract;
+using Librarian.Application.Handlers.Retrieve;
 using Librarian.Application.Handlers.Store;
 using Librarian.Application.Ports.Ingest;
 using Librarian.Application.Ports.Retrieve;
@@ -88,9 +89,23 @@ public static class DependencyInjectionExtensions
         services.AddSingleton<IExtractRunOptionsFactory, ExtractRunOptionsFactory>();
         services.AddSingleton(_ => FieldCatalog.LoadDefault());
         services.AddSingleton<ExtractMessageBuilder>();
-        services.AddKeyedSingleton<AIAgent>("extractAgent", (sp, _) => MistralAgentFactory.Create(
+        services.AddKeyedSingleton<AIAgent>("extractAgent", (sp, _) => MistralAgentFactory.CreateExtractAgent(
             sp, mistral.ApiKey, ingest.Extract.BaseUrl, ingest.Extract.Model, ingest.Extract.ReasoningEffort, ingest.Extract.MaxRounds));
 
+        return services;
+    }
+
+    public static IServiceCollection AddLibrarianRefine(
+        this IServiceCollection services, MistralOptions mistral, RefineOptions refine)
+    {
+        services.AddSingleton(mistral);
+        services.AddSingleton(refine);
+        services.AddSingleton<IRefineRunOptionsFactory, RefineRunOptionsFactory>();
+        services.AddKeyedSingleton<AIAgent>("refineAgent", (sp, _) =>
+        {
+            mistral.Validate();
+            return MistralAgentFactory.CreateRefineAgent(sp, mistral.ApiKey, refine.BaseUrl, refine.Model);
+        });
         return services;
     }
 }

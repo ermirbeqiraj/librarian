@@ -44,6 +44,15 @@
       "problemMatcher": []
     },
     {
+      "label": "librarian:evals: refine",
+      "detail": "The refine eval: every case through the query rewriter, query count and periods scored, the text printed",
+      "type": "shell",
+      "command": "dotnet run --project src/Librarian.Evals -- refine",
+      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "presentation": { "reveal": "always", "clear": true },
+      "problemMatcher": []
+    },
+    {
       "label": "infra: up",
       "detail": "Start every service and wait until each is healthy",
       "type": "shell",

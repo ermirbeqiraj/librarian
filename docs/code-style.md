@@ -63,11 +63,12 @@ tests and this file are the contract. Build, packages and config: [architecture.
 
 ## Agents
 
-- One factory method builds an agent (`MistralAgentFactory.Create`): the client with its options
+- One factory builds the agents (`MistralAgentFactory`): the client with its options
   (`Endpoint`, `RetryPolicy = new ClientRetryPolicy(3)`, `UserAgentApplicationId`, a transport),
   the pipeline (the tool loop, capped in config), the instructions resource, the telemetry wrap —
-  all in one place, all adapter work. The rules an agent runs
-  (checks, catalogs, message building) are Application's.
+  all in one place, all adapter work. A lone factory method can be plain `Create`; from the second
+  one on, every method is named for the agent it builds (`CreateExtractAgent`, `CreateRefineAgent`).
+  The rules an agent runs (checks, catalogs, message building) are Application's.
 - An agent is a keyed singleton holding only what is fixed: its instructions, its pipeline, its
   `IChatClient`. Singletons never hold run data.
 - Run-only context rides run-only tools: the handler asks a port for this run's options
@@ -78,7 +79,9 @@ tests and this file are the contract. Build, packages and config: [architecture.
   run.
 - Fixed instructions are an embedded `.md` resource under the vendor's `Instructions/` folder,
   one file per agent (`Instructions/extract.md`); what varies per run goes in the run's message,
-  never in the instructions.
+  never in the instructions. An agent whose whole instruction text varies per run holds no fixed
+  instructions: the run options factory renders the resource per run (`refine-v3.md` with
+  `today`) and sends it in the run options.
 - Model and endpoint come from config, so a test or eval builds the same agent over another
   `IChatClient` without touching logic.
 - The tool loop is capped in config. Structured output (`RunAsync<T>`) parses strictly; a parse
@@ -106,6 +109,8 @@ tests and this file are the contract. Build, packages and config: [architecture.
 - One folder per vertical (`Ingest/`), mirroring the code's names.
 - Logic is tested pure; an adapter is proved against the real service, config-borne paths only
   (the repo never names a data path).
+- Search quality is the evals' (`Librarian.Evals`), never a committed test's: the eval measures
+  it; its commands are in `architecture.md`.
 - `TestContext.Current.CancellationToken` everywhere a token is taken; the xUnit analyzers run as
   errors.
 

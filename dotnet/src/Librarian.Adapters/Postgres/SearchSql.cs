@@ -41,21 +41,22 @@ internal static class SearchSql
             sql.Append(" AND s.document_id = ANY(@document_ids)");
             parameters.Add(new NpgsqlParameter("document_ids", NpgsqlDbType.Array | NpgsqlDbType.Bigint) { Value = filters.DocumentIds.ToArray() });
         }
-        if (filters.Period is not null)
+        if (filters.Period is { } period)
         {
-            sql.Append(" AND (d.validity_start IS NULL OR ").Append(Predicate(filters.Period.Op)).Append(')');
-            parameters.Add(new NpgsqlParameter("period_start", NpgsqlDbType.Date) { Value = filters.Period.Start });
-            parameters.Add(new NpgsqlParameter("period_end", NpgsqlDbType.Date) { Value = filters.Period.DayAfter });
+            var overlap = new List<string>();
+            if (period.To is { } to)
+            {
+                overlap.Add("d.validity_start::date <= @period_to");
+                parameters.Add(new NpgsqlParameter("period_to", NpgsqlDbType.Date) { Value = to });
+            }
+            if (period.From is { } from)
+            {
+                overlap.Add("(d.validity_end IS NULL OR d.validity_end::date >= @period_from)");
+                parameters.Add(new NpgsqlParameter("period_from", NpgsqlDbType.Date) { Value = from });
+            }
+            if (overlap.Count > 0)
+                sql.Append(" AND (d.validity_start IS NULL OR (").Append(string.Join(" AND ", overlap)).Append("))");
         }
         return (sql.ToString(), parameters);
     }
-
-    private static string Predicate(PeriodOp op) => op switch
-    {
-        PeriodOp.During => "d.validity_start::date < @period_end AND (d.validity_end IS NULL OR d.validity_end::date >= @period_start)",
-        PeriodOp.After => "d.validity_end IS NULL OR d.validity_end::date >= @period_end",
-        PeriodOp.Before => "d.validity_start::date < @period_start",
-        PeriodOp.On => "d.validity_start::date <= @period_start AND (d.validity_end IS NULL OR d.validity_end::date >= @period_start)",
-        _ => throw new ArgumentOutOfRangeException(nameof(op), op, "unknown period op."),
-    };
 }

@@ -11,20 +11,11 @@ namespace Librarian.Adapters.Mistral;
 
 internal static class MistralAgentFactory
 {
-    internal static AIAgent Create(IServiceProvider services, string apiKey, string baseUrl, string model, string reasoningEffort, int maxRounds)
+    internal static AIAgent CreateExtractAgent(IServiceProvider services, string apiKey, string baseUrl, string model, string reasoningEffort, int maxRounds)
     {
         var loggerFactory = services.GetRequiredService<ILoggerFactory>();
 
-        var openAiClient = new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions
-        {
-            Endpoint = new Uri(baseUrl),
-            RetryPolicy = new ClientRetryPolicy(3),
-            UserAgentApplicationId = "librarian",
-            Transport = new HttpClientPipelineTransport(new HttpClient(new ThinkingShim())),
-        });
-        IChatClient chat = openAiClient.GetChatClient(model).AsIChatClient();
-
-        var pipeline = chat.AsBuilder()
+        var pipeline = Chat(apiKey, baseUrl, model).AsBuilder()
             .UseFunctionInvocation(loggerFactory, f => f.MaximumIterationsPerRequest = maxRounds)
             .Build(services);
 
@@ -48,6 +39,31 @@ internal static class MistralAgentFactory
         }, loggerFactory, services);
 
         return new OpenTelemetryAgent(agent, "Microsoft.Agents.AI");
+    }
+
+    internal static AIAgent CreateRefineAgent(IServiceProvider services, string apiKey, string baseUrl, string model)
+    {
+        var loggerFactory = services.GetRequiredService<ILoggerFactory>();
+
+        var agent = new ChatClientAgent(Chat(apiKey, baseUrl, model), new ChatClientAgentOptions
+        {
+            Name = "refineAgent",
+            ChatOptions = new ChatOptions { Temperature = 0 },
+        }, loggerFactory, services);
+
+        return new OpenTelemetryAgent(agent, "Microsoft.Agents.AI");
+    }
+
+    private static IChatClient Chat(string apiKey, string baseUrl, string model)
+    {
+        var openAiClient = new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions
+        {
+            Endpoint = new Uri(baseUrl),
+            RetryPolicy = new ClientRetryPolicy(3),
+            UserAgentApplicationId = "librarian",
+            Transport = new HttpClientPipelineTransport(new HttpClient(new ThinkingShim())),
+        });
+        return openAiClient.GetChatClient(model).AsIChatClient();
     }
 
     private static string InstructionsText()

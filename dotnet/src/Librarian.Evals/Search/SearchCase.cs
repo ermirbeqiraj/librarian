@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Text.Json;
 using Librarian.Application.Ports.Retrieve;
+using Librarian.Evals.Common;
 
 namespace Librarian.Evals.Search;
 
@@ -42,19 +44,25 @@ internal sealed record SearchCase(
         Period? period = null;
         if (item.Period is not null)
         {
-            if (!Enum.TryParse<PeriodOp>(item.Period.Op, ignoreCase: true, out var op))
-                throw new InvalidDataException($"Case {index} in {path} has an unknown period op '{item.Period.Op}'.");
-            period = Period.Create(op, item.Period.Value);
+            var from = Day(path, index, item.Period.From);
+            var to = Day(path, index, item.Period.To);
+            if (from > to)
+                throw new InvalidDataException($"Case {index} in {path} has a period whose from {item.Period.From} is after to {item.Period.To}.");
+            period = new Period(from, to);
         }
         return new SearchCase(Path.GetFileName(path), index, item.Query, item.From, item.Quotes, period, item.Author ?? "me", item.Note);
     }
 
+    private static DateOnly? Day(string path, int index, string? value)
+    {
+        if (value is null)
+            return null;
+        if (DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day))
+            return day;
+        throw new InvalidDataException($"Case {index} in {path} has a period date '{value}' that is not a real ISO day (yyyy-MM-dd).");
+    }
+
     private sealed record RawCase(string? Query, string? From, List<string> Quotes, string? Author, string? Note, RawPeriod? Period);
 
-    private sealed record RawPeriod(string Op, string Value);
-}
-
-internal static class Json
-{
-    public static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
+    private sealed record RawPeriod(string? From, string? To);
 }

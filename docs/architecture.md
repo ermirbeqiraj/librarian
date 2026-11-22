@@ -20,6 +20,9 @@ dotnet/                        the .NET app
 │   │                          package (Npgsql, Pgvector, OpenAI)
 │   ├── Librarian.Adapters     one directory per technology (Docling/, Mistral/,
 │   │                          FileSystem/, Postgres/); → Application
+│   ├── Librarian.Evals        the eval runner, a dev tool never shipped: one subcommand per
+│   │                          eval leg (`search` first); cases and runs live outside the repo,
+│   │                          their root in the dev overlay (Evals:Root); → Application, Adapters
 │   ├── Librarian.Ingest       worker host, scans the inbox on a timer; → Application, Adapters
 │   └── Librarian.Api          ASP.NET Core host; → Application, Adapters
 └── tests/Librarian.Tests      xUnit v3
@@ -78,6 +81,11 @@ environment. The dev overlay `appsettings.Development.json` is gitignored; its k
     { "Urls": "http://127.0.0.1:5080",
       "ConnectionStrings": { "Postgres": "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian;Password=librarian" } }
 
+    // src/Librarian.Evals/appsettings.Development.json
+    { "Mistral": { "ApiKey": "..." },
+      "ConnectionStrings": { "Postgres": "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian;Password=librarian" },
+      "Evals": { "Root": "/home/USER/.local/share/librarian-dotnet-dev/evals-dotnet" } }
+
 `Properties/launchSettings.json` sets the environment for `dotnet run`. From `dotnet/`:
 
     dotnet run --project src/Librarian.Api       # http://127.0.0.1:5080/health
@@ -88,8 +96,18 @@ directory. Paths are absolute — the app expands no `~`.
 
 ## Build and test
 
-VS Code tasks (`.vscode/tasks.json`): `dotnet: build`, `dotnet: test`, plus the `infra:` tasks.
-From a shell with cwd `dotnet/`: `dotnet restore --locked-mode`, `dotnet build`, `dotnet test`.
+VS Code tasks (`.vscode/tasks.json`): `dotnet: build`, `dotnet: test`, the `librarian:evals`
+tasks, plus the `infra:` tasks. From a shell with cwd `dotnet/`: `dotnet restore
+--locked-mode`, `dotnet build`, `dotnet test`.
+
+Search has no tests by design: its quality is the search eval's, measured against the dev
+library — compose up, the documents ingested, the cases and runs outside the repo. Refine's
+quality is its own leg: the transcripts are the case files' gold queries (count and periods
+scored, the text printed for reading). From `dotnet/`:
+
+    dotnet run --project src/Librarian.Evals -- search --mode vector|keyword [--limit N]
+    dotnet run --project src/Librarian.Evals -- refine
+
 The .NET 10 SDK lives in `~/.dotnet` on the dev machines: it must be on `PATH` with `DOTNET_ROOT`
 set for the app hosts.
 
