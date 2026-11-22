@@ -26,6 +26,24 @@
       "problemMatcher": "$msCompile"
     },
     {
+      "label": "librarian:evals: search vector",
+      "detail": "The search eval in vector mode: embeds each question via TEI, scores the ranks",
+      "type": "shell",
+      "command": "dotnet run --project src/Librarian.Evals -- search --mode vector",
+      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "presentation": { "reveal": "always", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "librarian:evals: search keyword",
+      "detail": "The search eval in keyword mode: the tsquery side, scored on the same cases",
+      "type": "shell",
+      "command": "dotnet run --project src/Librarian.Evals -- search --mode keyword",
+      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "presentation": { "reveal": "always", "clear": true },
+      "problemMatcher": []
+    },
+    {
       "label": "infra: up",
       "detail": "Start every service and wait until each is healthy",
       "type": "shell",

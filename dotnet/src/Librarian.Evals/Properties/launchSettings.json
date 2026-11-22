@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Librarian.Evals": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

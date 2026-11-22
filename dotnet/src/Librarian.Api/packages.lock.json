@@ -25,14 +25,6 @@
           "Microsoft.EntityFrameworkCore": "10.0.15"
         }
       },
-      "Microsoft.Extensions.AI.Evaluation": {
-        "type": "Transitive",
-        "resolved": "10.11.0",
-        "contentHash": "bCGBQzk+8HtfwKx8prJUloncDonqNWBIijhoieArgSg0WzJAgGNoDhG1f698mvEdNd7DFoZEoSjZz7PKxB8Evg==",
-        "dependencies": {
-          "Microsoft.Extensions.AI.Abstractions": "10.11.0"
-        }
-      },
       "Microsoft.Extensions.AmbientMetadata.Application": {
         "type": "Transitive",
         "resolved": "10.11.1",
@@ -229,6 +221,15 @@
         "requested": "[10.11.1, )",
         "resolved": "10.11.1",
         "contentHash": "LcfA+SF7/GYZcI/XIC6WW17g7xytFvMQOzlBvbK5rvcltQKYXqnX47WaE/tvFqNm2GQtqhWnG/EkJC+T5PBKMw=="
+      },
+      "Microsoft.Extensions.AI.Evaluation": {
+        "type": "CentralTransitive",
+        "requested": "[10.11.0, )",
+        "resolved": "10.11.0",
+        "contentHash": "bCGBQzk+8HtfwKx8prJUloncDonqNWBIijhoieArgSg0WzJAgGNoDhG1f698mvEdNd7DFoZEoSjZz7PKxB8Evg==",
+        "dependencies": {
+          "Microsoft.Extensions.AI.Abstractions": "10.11.0"
+        }
       },
       "Microsoft.Extensions.AI.OpenAI": {
         "type": "CentralTransitive",
