@@ -6,8 +6,10 @@
 AGENTS.local.md
 
 # .NET build output
-dotnet/**/bin/
-dotnet/**/obj/
+src/librarian/**/bin/
+src/librarian/**/obj/
+src/tests/**/bin/
+src/tests/**/obj/
 
 # The per-machine development overlay: its own absolute paths, ports and secrets for the
 # Development environment. Never in Git, and the .dockerignore keeps it out of the image too —

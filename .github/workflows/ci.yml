@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   tests:
-    # Unit tests only: the Postgres tests are their own project (tests/Librarian.PostgresTests,
+    # Unit tests only: the Postgres tests are their own project (tests/PostgresTests,
     # run locally against the compose stack), and the reader adapter tests call the live
     # docling and OCR — neither runs here.
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
@@ -28,17 +28,17 @@ jobs:
 
       - name: Restore
         run: dotnet restore --locked-mode
-        working-directory: dotnet
+        working-directory: src
 
       - name: Build
-        run: dotnet build Librarian.slnx --no-restore
-        working-directory: dotnet
+        run: dotnet build librarian.slnx --no-restore
+        working-directory: src
 
       - name: Unit tests
         run: >-
-          dotnet run --project tests/Librarian.Tests --no-build --
-          -class- Librarian.Tests.Ingest.ReaderAdapterTests
-        working-directory: dotnet
+          dotnet run --project tests/Tests --no-build --
+          -class- Tests.Ingest.ReaderAdapterTests
+        working-directory: src
 
   image:
     # The image must build; on a push to main it also publishes to GHCR
@@ -62,7 +62,7 @@ jobs:
 
       - uses: docker/build-push-action@v6
         with:
-          context: dotnet
+          context: src
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: |
             ghcr.io/${{ github.repository }}:latest

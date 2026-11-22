@@ -59,10 +59,10 @@ services:
 
   ingest:
     build:
-      context: ../dotnet
+      context: ../src
       dockerfile: Dockerfile.dev
     image: librarian-dotnet-dev
-    command: ["Librarian.Ingest.dll"]
+    command: ["Ingest.dll"]
     environment:
       # Config comes from the app's own files, carried by the mounted build output.
       DOTNET_ENVIRONMENT: Development
@@ -70,7 +70,7 @@ services:
     network_mode: host
     volumes:
       # The host's build output is the app; a rebuild needs only a container restart.
-      - ../dotnet/src/Librarian.Ingest/bin/Debug/net10.0:/app:ro
+      - ../src/librarian/Ingest/bin/Debug/net10.0:/app:ro
       # The dev root at the same absolute path — ingest is the only app that writes the library.
       - ${HOME}/.local/share/librarian-dotnet-dev:${HOME}/.local/share/librarian-dotnet-dev
     depends_on:
@@ -81,10 +81,10 @@ services:
 
   api:
     build:
-      context: ../dotnet
+      context: ../src
       dockerfile: Dockerfile.dev
     image: librarian-dotnet-dev
-    command: ["Librarian.Api.dll"]
+    command: ["Api.dll"]
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       # Bridge network, so the published port answers on the real host; on the bridge
@@ -95,7 +95,7 @@ services:
       - "127.0.0.1:5080:5080"
     volumes:
       # No library mount: Api cannot write to the library (docs/architecture.md).
-      - ../dotnet/src/Librarian.Api/bin/Debug/net10.0:/app:ro
+      - ../src/librarian/Api/bin/Debug/net10.0:/app:ro
     depends_on:
       postgres:
         condition: service_healthy
