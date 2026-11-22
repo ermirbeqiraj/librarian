@@ -157,3 +157,5 @@ the reader role feeds only the ask's `sql` tool.
 ## Branches
 
 Work branches off `develop`, one PR per task, local only until the cutover (see `AGENTS.md`).
+CI is `.github/workflows/ci.yml`: PRs build the image and run the unit tests; the Postgres-backed
+tests stay local against compose. A push to `main` publishes the image to GHCR.
