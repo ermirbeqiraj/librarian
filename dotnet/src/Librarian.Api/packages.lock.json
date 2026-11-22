@@ -103,6 +103,22 @@
         "resolved": "10.0.4",
         "contentHash": "m2VCpcU9MKD8lLxTn+YaNIRWd+Gz3y/9wIaM+2ifDF24xZ2Kvvjx4CDB2BIgobr1Gj6a/gsdmfz1sQ+kmd7liw=="
       },
+      "OpenTelemetry.Api": {
+        "type": "Transitive",
+        "resolved": "1.21.0",
+        "contentHash": "KptD6ThegQORUzwot75zW2AUH6IDyKXH1R2yhovJPYfrzqSgHQidMfVfKLjaYEnJa5ySQgQm0RjuM6X+TCJ9yw==",
+        "dependencies": {
+          "System.Diagnostics.DiagnosticSource": "11.0.0"
+        }
+      },
+      "OpenTelemetry.Api.ProviderBuilderExtensions": {
+        "type": "Transitive",
+        "resolved": "1.21.0",
+        "contentHash": "ZcBCBTGbzjj8Y+9UnZKbSjnRyKc2ub2IvvU68fFHKmyKzTS4hU+4/f0PO1GoIf7FTYLKTyw+l/EwLL/PPIDkxg==",
+        "dependencies": {
+          "OpenTelemetry.Api": "1.21.0"
+        }
+      },
       "Pgvector": {
         "type": "Transitive",
         "resolved": "0.3.2",
@@ -140,6 +156,11 @@
           "System.Memory.Data": "10.0.10"
         }
       },
+      "System.Diagnostics.DiagnosticSource": {
+        "type": "Transitive",
+        "resolved": "11.0.0",
+        "contentHash": "+boRR9uSKiIPtFeRLGwO5xylhDF80xpwM+dmk5jgIqqeUKLbujGkGICMTKqQrBzKO6fIp8BU8DV6YZkQukqo3A=="
+      },
       "System.Memory.Data": {
         "type": "Transitive",
         "resolved": "10.0.10",
@@ -161,6 +182,7 @@
           "Microsoft.Extensions.Http.Resilience": "[10.11.1, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.4, )",
           "OpenAI": "[2.15.0, )",
+          "OpenTelemetry": "[1.21.0, )",
           "Pgvector.EntityFrameworkCore": "[0.3.0, )"
         }
       },
@@ -269,6 +291,15 @@
         "contentHash": "04Lvp/guze35OdYsEcQY58SmSCBWCEDCGkiLiTQXDJy5L3d20n7I/zg94ry9hQ5c4dMDF1ASqlxD/IIMy47gFg==",
         "dependencies": {
           "System.ClientModel": "1.16.0"
+        }
+      },
+      "OpenTelemetry": {
+        "type": "CentralTransitive",
+        "requested": "[1.21.0, )",
+        "resolved": "1.21.0",
+        "contentHash": "ynAzNO/ebDTPxARbz4z/HgL8azMk/iDk4GXFuIRQ6krr1+a5QMC4eoiXRl+e7COd+3RLyL/yTuE6bevwqbv4Bw==",
+        "dependencies": {
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.21.0"
         }
       },
       "Pgvector.EntityFrameworkCore": {

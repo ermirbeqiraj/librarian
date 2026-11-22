@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Librarian.Adapters;
 using Librarian.Application.Domain;
-using Librarian.Application.Handlers.Ingest;
 using Librarian.Application.Handlers.Ingest.Extract;
 using Librarian.Application.Handlers.Store;
 using Librarian.Application.Ports.Store;

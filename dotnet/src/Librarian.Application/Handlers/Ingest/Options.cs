@@ -47,25 +47,15 @@ public sealed class IngestOptions
     public void Validate()
     {
         Positive("Ingest:MaxAttempts", MaxAttempts);
-        Required("Ingest:Docling", Docling);
-        Required("Ingest:Ocr", Ocr);
-        Required("Ingest:Extract", Extract);
+        Validation.Required("Ingest:Docling", Docling);
+        Validation.Required("Ingest:Ocr", Ocr);
+        Validation.Required("Ingest:Extract", Extract);
         Docling.Validate();
         Ocr.Validate();
         Extract.Validate();
     }
 
-    private static void Required(string key, object? section)
-    {
-        if (section is null)
-            throw new InvalidOperationException($"{key} is not set.");
-    }
 
-    internal static void Required(string key, string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            throw new InvalidOperationException($"{key} is not set.");
-    }
 
     private static void Positive(string key, int value)
     {
@@ -80,7 +70,7 @@ public sealed class IngestOptions
 
         public void Validate()
         {
-            Required("Ingest:Docling:Url", Url);
+            Validation.Required("Ingest:Docling:Url", Url);
             Positive("Ingest:Docling:TimeoutSeconds", TimeoutSeconds);
         }
     }
@@ -97,8 +87,8 @@ public sealed class IngestOptions
 
         public void Validate()
         {
-            Required("Ingest:Ocr:Url", Url);
-            Required("Ingest:Ocr:Model", Model);
+            Validation.Required("Ingest:Ocr:Url", Url);
+            Validation.Required("Ingest:Ocr:Model", Model);
             Positive("Ingest:Ocr:MaxPages", MaxPages);
             Positive("Ingest:Ocr:MinCharsPerPage", MinCharsPerPage);
             Positive("Ingest:Ocr:CallLimit", CallLimit);
@@ -119,9 +109,9 @@ public sealed class IngestOptions
 
         public void Validate()
         {
-            Required("Ingest:Extract:BaseUrl", BaseUrl);
-            Required("Ingest:Extract:Model", Model);
-            Required("Ingest:Extract:ReasoningEffort", ReasoningEffort);
+            Validation.Required("Ingest:Extract:BaseUrl", BaseUrl);
+            Validation.Required("Ingest:Extract:Model", Model);
+            Validation.Required("Ingest:Extract:ReasoningEffort", ReasoningEffort);
             Positive("Ingest:Extract:MaxRounds", MaxRounds);
             Positive("Ingest:Extract:HeadPages", HeadPages);
             Positive("Ingest:Extract:TailPages", TailPages);
@@ -136,6 +126,6 @@ public sealed class MistralOptions
 
     public void Validate()
     {
-        IngestOptions.Required("Mistral:ApiKey", ApiKey);
+        Validation.Required("Mistral:ApiKey", ApiKey);
     }
 }

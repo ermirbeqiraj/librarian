@@ -708,6 +708,7 @@
           "Microsoft.Extensions.Http.Resilience": "[10.11.1, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.4, )",
           "OpenAI": "[2.15.0, )",
+          "OpenTelemetry": "[1.21.0, )",
           "Pgvector.EntityFrameworkCore": "[0.3.0, )"
         }
       },

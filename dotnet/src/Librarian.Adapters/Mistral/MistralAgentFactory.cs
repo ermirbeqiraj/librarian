@@ -1,4 +1,5 @@
 using System.Reflection;
+using Librarian.Application.Handlers.Ask;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,6 +53,41 @@ internal static class MistralAgentFactory
         }, loggerFactory, services);
 
         return new OpenTelemetryAgent(agent, "Microsoft.Agents.AI");
+    }
+
+    internal static IChatClient AskChat(string apiKey, string baseUrl, string model)
+        => Chat(apiKey, baseUrl, model);
+
+    internal static AIAgent CreateAskAgent(IServiceProvider services, IChatClient chat, string reasoningEffort, int maxRounds)
+    {
+        var loggerFactory = services.GetRequiredService<ILoggerFactory>();
+
+        var pipeline = chat.AsBuilder()
+            .UseFunctionInvocation(loggerFactory, f => f.MaximumIterationsPerRequest = maxRounds)
+            .Build(services);
+
+        var agent = new ChatClientAgent(pipeline, new ChatClientAgentOptions
+        {
+            Name = "askAgent",
+            ChatOptions = new ChatOptions
+            {
+                Temperature = 0,
+                Reasoning = new ReasoningOptions
+                {
+                    Effort = reasoningEffort switch
+                    {
+                        "low" => ReasoningEffort.Low,
+                        "medium" => ReasoningEffort.Medium,
+                        "high" => ReasoningEffort.High,
+                        _ => throw new InvalidOperationException($"Ask:ReasoningEffort '{reasoningEffort}' is not one of low, medium, high."),
+                    },
+                },
+            },
+        }, loggerFactory, services);
+
+#pragma warning disable MAAI001
+        return new OpenTelemetryAgent(agent, "Microsoft.Agents.AI", autoWireChatClient: true) { EnableSensitiveData = true };
+#pragma warning restore MAAI001
     }
 
     private static IChatClient Chat(string apiKey, string baseUrl, string model)

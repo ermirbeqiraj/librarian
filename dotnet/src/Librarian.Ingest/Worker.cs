@@ -2,7 +2,6 @@ using Librarian.Application.Domain;
 using Librarian.Application.Handlers.Ingest;
 using Librarian.Application.Ports.Ingest;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Librarian.Ingest;
 

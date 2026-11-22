@@ -6,8 +6,10 @@ using Librarian.Adapters.Tei;
 using Librarian.Application.Domain;
 using Librarian.Application.Handlers.Ingest;
 using Librarian.Application.Handlers.Ingest.Extract;
+using Librarian.Application.Handlers.Ask;
 using Librarian.Application.Handlers.Retrieve;
 using Librarian.Application.Handlers.Store;
+using Librarian.Application.Ports.Ask;
 using Librarian.Application.Ports.Ingest;
 using Librarian.Application.Ports.Retrieve;
 using Librarian.Application.Ports.Store;
@@ -113,4 +115,25 @@ public static class DependencyInjectionExtensions
         });
         return services;
     }
+
+    public static IServiceCollection AddLibrarianAsk(
+        this IServiceCollection services, MistralOptions mistral, AskOptions ask, string readerConnectionString)
+    {
+        services.AddSingleton(mistral);
+        services.AddSingleton(ask);
+        services.AddSingleton<ISql>(_ => new PostgresSql(readerConnectionString));
+        services.AddSingleton<IAskRunOptionsFactory, AskRunOptionsFactory>();
+        services.AddKeyedSingleton<IChatClient>("askChat", (sp, _) =>
+        {
+            mistral.Validate();
+            return MistralAgentFactory.AskChat(mistral.ApiKey, ask.BaseUrl, ask.Model);
+        });
+        services.AddKeyedSingleton<AIAgent>("askAgent", (sp, _) =>
+        {
+            mistral.Validate();
+            return MistralAgentFactory.CreateAskAgent(sp, sp.GetRequiredKeyedService<IChatClient>("askChat"), ask.ReasoningEffort, ask.MaxRounds);
+        });
+        return services;
+    }
 }
+

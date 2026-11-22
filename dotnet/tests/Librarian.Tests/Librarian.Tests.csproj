@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\src\Librarian.Application\Librarian.Application.csproj" />
     <ProjectReference Include="..\..\src\Librarian.Adapters\Librarian.Adapters.csproj" />
     <ProjectReference Include="..\..\src\Librarian.Ingest\Librarian.Ingest.csproj" />
+    <ProjectReference Include="..\..\src\Librarian.Evals\Librarian.Evals.csproj" />
   </ItemGroup>
 
 </Project>

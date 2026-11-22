@@ -24,6 +24,77 @@ namespace Librarian.Adapters.Postgres.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Librarian.Application.Domain.Ask", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("question");
+
+                    b.Property<string>("RefinedJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("refined_queries");
+
+                    b.Property<string>("ResultJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("result");
+
+                    b.Property<string>("Status")
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("asks", (string)null);
+                });
+
+            modelBuilder.Entity("Librarian.Application.Domain.AskSpan", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AskId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ask_id");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<string>("Span")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("span");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AskId");
+
+                    b.ToTable("ask_spans", (string)null);
+                });
+
             modelBuilder.Entity("Librarian.Application.Domain.Chunk", b =>
                 {
                     b.Property<long>("Id")
@@ -251,6 +322,15 @@ namespace Librarian.Adapters.Postgres.Migrations
                     b.ToTable("sections", (string)null);
                 });
 
+            modelBuilder.Entity("Librarian.Application.Domain.AskSpan", b =>
+                {
+                    b.HasOne("Librarian.Application.Domain.Ask", null)
+                        .WithMany("Spans")
+                        .HasForeignKey("AskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Librarian.Application.Domain.Chunk", b =>
                 {
                     b.HasOne("Librarian.Application.Domain.Section", null)
@@ -285,6 +365,11 @@ namespace Librarian.Adapters.Postgres.Migrations
                         .HasForeignKey("DocumentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Librarian.Application.Domain.Ask", b =>
+                {
+                    b.Navigation("Spans");
                 });
 
             modelBuilder.Entity("Librarian.Application.Domain.Document", b =>

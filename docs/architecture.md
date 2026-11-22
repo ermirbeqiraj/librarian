@@ -85,8 +85,12 @@ environment. The dev overlay `appsettings.Development.json` is gitignored; its k
 
     // src/Librarian.Evals/appsettings.Development.json
     { "Mistral": { "ApiKey": "..." },
-      "ConnectionStrings": { "Postgres": "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian;Password=librarian" },
-      "Evals": { "Root": "/home/USER/.local/share/librarian-dotnet-dev/evals-dotnet" } }
+      "Librarian": { "Root": "/home/USER/.local/share/librarian-dotnet-dev" },
+      "ConnectionStrings": {
+        "Postgres": "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian;Password=librarian",
+        "PostgresReader": "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian_reader;Password=..." },
+      "Evals": { "Root": "/home/USER/.local/share/librarian-dotnet-dev/evals-dotnet" },
+      "Ask": { "InstructionsPath": "/home/USER/.local/share/librarian-dotnet-dev/ask-v1.md" } }
 
 `Properties/launchSettings.json` sets the environment for `dotnet run`. From `dotnet/`:
 
@@ -120,10 +124,15 @@ its log tick). From a shell with cwd `dotnet/`: `dotnet restore --locked-mode`, 
 Search has no tests by design: its quality is the search eval's, measured against the dev
 library — compose up, the documents ingested, the cases and runs outside the repo. Refine's
 quality is its own leg: the transcripts are the case files' gold queries (count and periods
-scored, the text printed for reading). From `dotnet/`:
+scored, the text printed for reading). Retrieval is the ask's leg: each case goes through the
+whole ask — refine, the agent's tool rounds, submit — and is scored hit/answer/honesty against
+the case's expected status, values and quotes; it needs the reader role first (a one-time
+`psql ... < infra/postgres/reader.sql`, run by hand) and, to prove the span export, it reads
+the recorded spans back. From `dotnet/`:
 
     dotnet run --project src/Librarian.Evals -- search --mode vector|keyword [--limit N]
     dotnet run --project src/Librarian.Evals -- refine
+    dotnet run --project src/Librarian.Evals -- retrieval [--cases <file>]
 
 The .NET 10 SDK lives in `~/.dotnet` on the dev machines: it must be on `PATH` with `DOTNET_ROOT`
 set for the app hosts.
@@ -138,7 +147,12 @@ connection string comes from the gitignored overlay). From `dotnet/`:
       --connection "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian;Password=librarian"
 
 Deploy runs the migrations bundle as its own step, as the owner login. Roles, grants, extensions:
-SQL in `infra/postgres/` (`vector` and `unaccent` come from there, not from a migration).
+SQL in `infra/postgres/` (`vector`, `unaccent` and — for the ask's `sql` tool — the
+`librarian_reader` role, read-only with a statement timeout, come from there, not from a migration).
+
+The ask's own storage (the asks row and its spans, kept 15 days by a worker in the Api host) is
+part of the Api host, not the library: write access to the library stays with Ingest alone, and
+the reader role feeds only the ask's `sql` tool.
 
 ## Branches
 

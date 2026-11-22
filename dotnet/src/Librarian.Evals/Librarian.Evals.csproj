@@ -5,7 +5,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Librarian.Tests" />
     <PackageReference Include="Microsoft.Extensions.AI.Evaluation" />
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>
 

@@ -1,4 +1,3 @@
-using Librarian.Application.Handlers.Ingest;
 
 namespace Librarian.Application.Handlers.Retrieve;
 
@@ -10,8 +9,8 @@ public sealed class RefineOptions
 
     public void Validate()
     {
-        IngestOptions.Required("Refine:BaseUrl", BaseUrl);
-        IngestOptions.Required("Refine:Model", Model);
+        Validation.Required("Refine:BaseUrl", BaseUrl);
+        Validation.Required("Refine:Model", Model);
         Positive("Refine:ParseRetries", ParseRetries);
     }
 

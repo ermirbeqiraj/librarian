@@ -62,6 +62,15 @@
       "problemMatcher": []
     },
     {
+      "label": "librarian:evals: retrieval",
+      "detail": "The retrieval eval: every case through the whole ask pipeline (refine, dig, submit), scored hit/answer/honesty",
+      "type": "shell",
+      "command": "dotnet run --project src/Librarian.Evals -- retrieval",
+      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "presentation": { "reveal": "always", "clear": true },
+      "problemMatcher": []
+    },
+    {
       "label": "infra: up",
       "detail": "Start every service and wait until each is healthy",
       "type": "shell",

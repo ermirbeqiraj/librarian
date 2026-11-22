@@ -2,6 +2,7 @@
 
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Librarian.Tests" />
     <ProjectReference Include="..\Librarian.Application\Librarian.Application.csproj" />
   </ItemGroup>
 
@@ -16,6 +17,7 @@
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="OpenTelemetry" />
     <PackageReference Include="OpenAI" />
     <PackageReference Include="Pgvector.EntityFrameworkCore" />
   </ItemGroup>

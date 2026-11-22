@@ -8,6 +8,7 @@ public sealed class LibrarianDbContext(
 {
     public DbSet<Ingestion> Ingestions => Set<Ingestion>();
     public DbSet<Document> Documents => Set<Document>();
+    public DbSet<Ask> Asks => Set<Ask>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

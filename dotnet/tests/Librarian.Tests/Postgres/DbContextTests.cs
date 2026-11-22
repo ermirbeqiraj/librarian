@@ -1,6 +1,5 @@
 using Librarian.Adapters;
 using Librarian.Application.Domain;
-using Librarian.Application.Handlers.Ingest;
 using Librarian.Application.Handlers.Ingest.Extract;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;

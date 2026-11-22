@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Handlers\Ingest\Extract\catalog.json" />
+    <EmbeddedResource Include="Handlers\Ask\ToolDescriptions\*.md" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Librarian.Application.Handlers.Retrieve;
-using Librarian.Evals;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.DependencyInjection;
 

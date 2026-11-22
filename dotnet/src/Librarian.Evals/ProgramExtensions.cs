@@ -1,10 +1,14 @@
 using Librarian.Adapters;
+using Librarian.Adapters.Postgres;
+using Librarian.Application.Handlers.Ask;
 using Librarian.Application.Handlers.Ingest;
 using Librarian.Application.Handlers.Retrieve;
 using Librarian.Application.Handlers.Store;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 namespace Librarian.Evals;
 
@@ -19,17 +23,38 @@ public static class ProgramExtensions
         var refine = configuration.GetSection("Refine").Get<RefineOptions>() ?? new RefineOptions();
         refine.Validate();
         var mistral = configuration.GetSection("Mistral").Get<MistralOptions>() ?? new MistralOptions();
+        var paths = configuration.GetSection("Librarian").Get<LibrarianOptions>() ?? new LibrarianOptions();
+        paths.Validate();
+        var ask = configuration.GetSection("Ask").Get<AskOptions>() ?? new AskOptions();
+        ask.Validate();
 
         var connectionString = configuration.GetConnectionString("Postgres")
             ?? throw new InvalidOperationException("ConnectionStrings:Postgres is not set.");
+        var readerConnectionString = configuration.GetConnectionString("PostgresReader")
+            ?? throw new InvalidOperationException("ConnectionStrings:PostgresReader is not set.");
         RequireLocalDatabase(connectionString);
+        RequireLocalDatabase(readerConnectionString);
 
         services.AddPostgres(connectionString).AddPostgresSearch();
         services.AddSingleton(store);
         services.AddSingleton(evals);
+        services.AddSingleton(paths);
         services.AddTei(store);
         services.AddLibrarianRefine(mistral, refine);
         services.AddQueryRefiner();
+        services.AddLibrarianAsk(mistral, ask, readerConnectionString);
+        services.AddAskHandler();
+        services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService("Librarian.Evals"))
+            .WithTracing(tracing => tracing
+            .AddSource("Microsoft.Agents.AI", "Microsoft.Extensions.AI", AskTrace.SourceName)
+            .AddProcessor(_ => new AskSpanProcessor(connectionString))
+            // The live view: traces stream to the compose aspire dashboard while the eval runs.
+            .AddOtlpExporter(exporter =>
+            {
+                // The eval runs on the host; the dashboard's ingest port is published there.
+                exporter.Endpoint = new Uri(configuration["Aspire:Endpoint"] ?? "http://127.0.0.1:18889");
+            }));
         return services;
     }
 

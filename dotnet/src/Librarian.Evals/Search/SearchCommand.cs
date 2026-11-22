@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Librarian.Application.Domain;
 using Librarian.Application.Handlers.Store;
 using Librarian.Application.Ports.Retrieve;
-using Librarian.Evals;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.DependencyInjection;

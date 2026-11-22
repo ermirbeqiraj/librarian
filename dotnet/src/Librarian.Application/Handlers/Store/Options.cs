@@ -21,11 +21,6 @@ public sealed class StoreOptions
             throw new InvalidOperationException($"{key} is not set.");
     }
 
-    private static void Required(string key, string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            throw new InvalidOperationException($"{key} is not set.");
-    }
 
     public sealed class EmbeddingOptions
     {
@@ -38,8 +33,8 @@ public sealed class StoreOptions
 
         public void Validate()
         {
-            Required("Store:Embedding:Url", Url);
-            Required("Store:Embedding:Model", Model);
+            Validation.Required("Store:Embedding:Url", Url);
+            Validation.Required("Store:Embedding:Model", Model);
             Positive("Store:Embedding:Dimensions", Dimensions);
             Positive("Store:Embedding:TokenBudget", TokenBudget);
             Positive("Store:Embedding:BatchSize", BatchSize);
