@@ -1,10 +1,15 @@
 .env
-.claude/
+
+# The per-machine agent companion to AGENTS.md, untracked: where a machine keeps its private
+# pointers (planning side, local conventions) and its notes on how it develops — methodology,
+# not product. Local to each machine; never commit it.
 AGENTS.local.md
 
 # .NET build output
 dotnet/**/bin/
 dotnet/**/obj/
 
-# Per-machine dev settings (hold absolute paths)
+# The per-machine development overlay: its own absolute paths, ports and secrets for the
+# Development environment. Never in Git, and the .dockerignore keeps it out of the image too —
+# a published app carries appsettings.json only; every machine difference rides the environment.
 appsettings.Development.json

@@ -55,7 +55,7 @@ public sealed class MatchingTests
     [Fact]
     public void A_text_answer_matches_squeezed_and_casefolded()
     {
-        Assert.True(Matching.AnySameValue(JsonDocument.Parse(JsonSerializer.Serialize("iliad")).RootElement, null, [Value("Iliad")]));
+        Assert.True(Matching.AnySameValue(JsonDocument.Parse(JsonSerializer.Serialize("scontrino")).RootElement, null, [Value("Scontrino")]));
         Assert.True(Matching.AnySameValue(JsonDocument.Parse(JsonSerializer.Serialize("documento di 10 pagine")).RootElement, null, [Value("Documento di 10 Pagine")]));
     }
 
