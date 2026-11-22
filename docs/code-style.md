@@ -5,13 +5,15 @@ tests and this file are the contract. Build, packages and config: [architecture.
 
 ## Projects and the direction
 
-- `Librarian.Application`: the logic, its ports and the domain. References only abstractions:
+- `librarian/Application`: the logic, its ports and the domain. References only abstractions:
   EF Core, Microsoft.Extensions.AI, MAF — never a vendor package (Npgsql, Pgvector, OpenAI).
-- `Librarian.Adapters`: one implementation per technology, adapting to the ports. → Application.
-- `Librarian.Ingest`, `Librarian.Api`: the host programs. → Application and Adapters.
-- `tests/Librarian.Tests`: mirrors the code; references everything.
+- `librarian/Adapters`: one implementation per technology, adapting to the ports. → Application.
+- `librarian/Ingest`, `librarian/Api`: the host programs. → Application and Adapters.
+- `tests/Tests`: mirrors the code; references everything. `tests/PostgresTests`: the compose
+  Postgres ones, run locally.
 - Application's isolation is enforced by a test that fails on any `ProjectReference`,
-  `Librarian.*` assembly reference, vendor package or vendor assembly reference, and on any
+  sibling-project assembly reference (`Adapters`, `Api`, `Evals`, `Ingest`), vendor package or
+  vendor assembly reference, and on any
   `Microsoft.EntityFrameworkCore.*` assembly but the bare `Microsoft.EntityFrameworkCore`.
 
 ## Application
@@ -96,7 +98,7 @@ tests and this file are the contract. Build, packages and config: [architecture.
 - `Program.cs` stays bare: create the builder, one `Add<Host>Services(configuration)` call, run.
 - All registrations live in `ProgramExtensions` as `Add<Host>Services`, composed of private
   `Add<Layer>` methods (`AddOptions`, `AddTracing`, `AddDb`), one concern per method.
-- `Librarian.Api` is composed of features: `Features/<Feature>/` with `Request.cs`, `Response.cs`
+- `librarian/Api` is composed of features: `Features/<Feature>/` with `Request.cs`, `Response.cs`
   (both as they exist) and the endpoint mapping, minimal APIs.
 - A `BackgroundService` decides nothing about the work. It finds candidates (files, timers) and
   hands the application handler what it found.
@@ -109,7 +111,7 @@ tests and this file are the contract. Build, packages and config: [architecture.
 - One folder per vertical (`Ingest/`), mirroring the code's names.
 - Logic is tested pure; an adapter is proved against the real service, config-borne paths only
   (the repo never names a data path).
-- Search quality is the evals' (`Librarian.Evals`), never a committed test's: the eval measures
+- Search quality is the evals' (`librarian/Evals`), never a committed test's: the eval measures
   it; its commands are in `architecture.md`.
 - `TestContext.Current.CancellationToken` everywhere a token is taken; the xUnit analyzers run as
   errors.

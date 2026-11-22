@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Ingest": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/librarian/">
+    <Project Path="librarian/Application/Application.csproj" />
+    <Project Path="librarian/Adapters/Adapters.csproj" />
+    <Project Path="librarian/Evals/Evals.csproj" />
+    <Project Path="librarian/Ingest/Ingest.csproj" />
+    <Project Path="librarian/Api/Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PostgresTests/PostgresTests.csproj" />
+    <Project Path="tests/Tests/Tests.csproj" />
+  </Folder>
+</Solution>

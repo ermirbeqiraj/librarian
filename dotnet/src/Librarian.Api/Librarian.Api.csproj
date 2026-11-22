@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
-
-  <ItemGroup>
-    <ProjectReference Include="..\Librarian.Application\Librarian.Application.csproj" />
-    <ProjectReference Include="..\Librarian.Adapters\Librarian.Adapters.csproj" />
-  </ItemGroup>
-
-</Project>

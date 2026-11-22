@@ -1,4 +1,4 @@
-`dotnet/` is the app, `infra/` is the compose for the local services and the database setup.
+`src/` is the app, `infra/` is the compose for the local services and the database setup.
 
 A doc states the rules at a high level, or points at the config file, script or task that holds
 the detail. No stories: it doesn't explain or restate what those files already say.

@@ -7,27 +7,30 @@ and the database setup.
 ## Layout
 
 ```
-dotnet/                        the .NET app
-├── Librarian.slnx
+src/                           the .NET app
+├── librarian.slnx
 ├── Directory.Build.props      net10.0, nullable, warnings as errors, CPM, lock files (locked mode)
 ├── Directory.Packages.props   exact package versions
 ├── nuget.config               nuget.org only, signatures required, trusted signers pinned
+├── Dockerfile                 the deploy image: both hosts published (Api the entrypoint)
 ├── Dockerfile.dev             the dev image for compose: the .NET 10 runtime only — the host's
 │                              build output is bind-mounted over /app (see infra/compose.yaml)
-├── src/
-│   ├── Librarian.Application  the brain: Ports/{Feature}/, Handlers/{Feature}/,
+├── librarian/
+│   ├── Application            the brain: Ports/{Feature}/, Handlers/{Feature}/,
 │   │                          Domain/, Services/ when the first shared service exists;
 │   │                          references only abstractions (a test enforces it):
 │   │                          EF Core, Microsoft.Extensions.AI, MAF — never a vendor
 │   │                          package (Npgsql, Pgvector, OpenAI)
-│   ├── Librarian.Adapters     one directory per technology (Docling/, Mistral/,
+│   ├── Adapters               one directory per technology (Docling/, Mistral/,
 │   │                          FileSystem/, Postgres/); → Application
-│   ├── Librarian.Evals        the eval runner, a dev tool never shipped: one subcommand per
+│   ├── Evals                  the eval runner, a dev tool never shipped: one subcommand per
 │   │                          eval leg (`search` first); cases and runs live outside the repo,
 │   │                          their root in the dev overlay (Evals:Root); → Application, Adapters
-│   ├── Librarian.Ingest       worker host, scans the inbox on a timer; → Application, Adapters
-│   └── Librarian.Api          ASP.NET Core host; → Application, Adapters
-└── tests/Librarian.Tests      xUnit v3
+│   ├── Ingest                 worker host, scans the inbox on a timer; → Application, Adapters
+│   └── Api                    ASP.NET Core host; → Application, Adapters
+└── tests/
+    ├── Tests                  xUnit v3, the unit suite (CI runs it)
+    └── PostgresTests          the Postgres-backed ones, run locally against compose
 ```
 
 References point one way: hosts → Application and Adapters; Adapters → Application. Two programs,
@@ -50,7 +53,7 @@ Database access is EF Core used directly from the handlers: one `DbContext` in A
 `IModelConfiguration`s it is given; the mapping that needs vendor types (the `vector` and
 `tsvector` columns are Npgsql types) lives in Adapters, in `Postgres/`. Npgsql is wired in
 Adapters (`AddPostgres`: `AddDbContext` with `UseNpgsql` + `UseVector`, migrations assembly
-`Librarian.Adapters`).
+`Adapters`).
 
 ## Conventions
 
@@ -74,16 +77,16 @@ environment variables (`__` is `:`; env wins). No `.env` files. Anything that ca
 one environment to another (a connection string among them) lives only in the overlay or the
 environment. The dev overlay `appsettings.Development.json` is gitignored; its keys:
 
-    // src/Librarian.Ingest/appsettings.Development.json
+    // librarian/Ingest/appsettings.Development.json
     { "Librarian": { "Root": "/home/USER/.local/share/librarian-dotnet-dev" },
       "Mistral": { "ApiKey": "..." },
       "ConnectionStrings": { "Postgres": "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian;Password=librarian" } }
 
-    // src/Librarian.Api/appsettings.Development.json
+    // librarian/Api/appsettings.Development.json
     { "Urls": "http://127.0.0.1:5080",
       "ConnectionStrings": { "Postgres": "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian;Password=librarian" } }
 
-    // src/Librarian.Evals/appsettings.Development.json
+    // librarian/Evals/appsettings.Development.json
     { "Mistral": { "ApiKey": "..." },
       "Librarian": { "Root": "/home/USER/.local/share/librarian-dotnet-dev" },
       "ConnectionStrings": {
@@ -92,14 +95,14 @@ environment. The dev overlay `appsettings.Development.json` is gitignored; its k
       "Evals": { "Root": "/home/USER/.local/share/librarian-dotnet-dev/evals-dotnet" },
       "Ask": { "InstructionsPath": "/home/USER/.local/share/librarian-dotnet-dev/ask-v1.md" } }
 
-`Properties/launchSettings.json` sets the environment for `dotnet run`. From `dotnet/`:
+`Properties/launchSettings.json` sets the environment for `dotnet run`. From `src/`:
 
-    dotnet run --project src/Librarian.Api       # http://127.0.0.1:5080/health
-    dotnet run --project src/Librarian.Ingest    # logs a scan tick every 30 s
+    dotnet run --project librarian/Api       # http://127.0.0.1:5080/health
+    dotnet run --project librarian/Ingest    # logs a scan tick every 30 s
 
 In the dev compose the apps run too (`ingest` and `api` in `infra/compose.yaml`): the thin dev
-image (`dotnet/Dockerfile.dev`) carries no compiled app — the host's build output
-(`src/<Host>/bin/Debug/net10.0`) is bind-mounted over `/app`, together with the app's own config
+image (`src/Dockerfile.dev`) carries no compiled app — the host's build output
+(`librarian/<Host>/bin/Debug/net10.0`) is bind-mounted over `/app`, together with the app's own config
 files (`appsettings.Development.json` among them), so a host build plus a container restart is the
 whole loop, and the restarted ingest re-scans the inbox. Compose sets only the environment name
 (Development) — the apps read their config from their files, never from compose. Ingest runs in
@@ -118,7 +121,7 @@ reset` include the app services), and the app tasks — `app: ingest|api restart
 container on the already-fresh mounted output) and `app: ingest|api build+restart` (host build,
 then the restart, in one task). Nothing of the Librarian runs on the host day to day: `infra: up`
 brings the externals and both apps up, Api on `127.0.0.1:5080`, Ingest with no port (its health is
-its log tick). From a shell with cwd `dotnet/`: `dotnet restore --locked-mode`, `dotnet build`,
+its log tick). From a shell with cwd `src/`: `dotnet restore --locked-mode`, `dotnet build`,
 `dotnet test`.
 
 Search has no tests by design: its quality is the search eval's, measured against the dev
@@ -128,22 +131,22 @@ scored, the text printed for reading). Retrieval is the ask's leg: each case goe
 whole ask — refine, the agent's tool rounds, submit — and is scored hit/answer/honesty against
 the case's expected status, values and quotes; it needs the reader role first (a one-time
 `psql ... < infra/postgres/reader.sql`, run by hand) and, to prove the span export, it reads
-the recorded spans back. From `dotnet/`:
+the recorded spans back. From `src/`:
 
-    dotnet run --project src/Librarian.Evals -- search --mode vector|keyword [--limit N]
-    dotnet run --project src/Librarian.Evals -- refine
-    dotnet run --project src/Librarian.Evals -- retrieval [--cases <file>]
+    dotnet run --project librarian/Evals -- search --mode vector|keyword [--limit N]
+    dotnet run --project librarian/Evals -- refine
+    dotnet run --project librarian/Evals -- retrieval [--cases <file>]
 
 The .NET 10 SDK lives in `~/.dotnet` on the dev machines: it must be on `PATH` with `DOTNET_ROOT`
 set for the app hosts.
 
 Migrations: EF Core in Adapters (`Postgres/Migrations/`), run as their own step, never on an app's
 start — the `dotnet: migrate` task, host-side against the published `127.0.0.1:5432` (the dev
-connection string comes from the gitignored overlay). From `dotnet/`:
+connection string comes from the gitignored overlay). From `src/`:
 
-    cd dotnet
+    cd src
     DOTNET_ENVIRONMENT=Development dotnet ef database update \
-      --project src/Librarian.Adapters --startup-project src/Librarian.Ingest \
+      --project librarian/Adapters --startup-project librarian/Ingest \
       --connection "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian;Password=librarian"
 
 Deploy runs the migrations bundle as its own step, as the owner login. Roles, grants, extensions:
@@ -158,5 +161,5 @@ the reader role feeds only the ask's `sql` tool.
 
 Work branches off `develop`, one PR per task, local only until the cutover (see `AGENTS.md`).
 CI is `.github/workflows/ci.yml`: PRs build the image and run the unit tests; the Postgres tests
-are their own project (`tests/Librarian.PostgresTests`) and run locally against compose.
+are their own project (`tests/PostgresTests`) and run locally against compose.
 A push to `main` publishes the image to GHCR.

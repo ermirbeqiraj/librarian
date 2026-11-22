@@ -11,8 +11,8 @@
       "label": "dotnet: build",
       "detail": "Build the .NET solution; restore runs in locked mode",
       "type": "shell",
-      "command": "dotnet build Librarian.slnx",
-      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "command": "dotnet build librarian.slnx",
+      "options": { "cwd": "${workspaceFolder}/src" },
       "presentation": { "reveal": "always", "clear": true },
       "problemMatcher": "$msCompile"
     },
@@ -20,8 +20,8 @@
       "label": "dotnet: test",
       "detail": "Run the .NET tests",
       "type": "shell",
-      "command": "dotnet test Librarian.slnx",
-      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "command": "dotnet test librarian.slnx",
+      "options": { "cwd": "${workspaceFolder}/src" },
       "presentation": { "reveal": "always", "clear": true },
       "problemMatcher": "$msCompile"
     },
@@ -29,8 +29,8 @@
       "label": "dotnet: migrate",
       "detail": "EF Core migrations as their own host-side step against the compose Postgres; the connection string comes from the gitignored dev overlay — never on an app's start",
       "type": "shell",
-      "command": "DOTNET_ENVIRONMENT=Development dotnet ef database update --project src/Librarian.Adapters --startup-project src/Librarian.Ingest",
-      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "command": "DOTNET_ENVIRONMENT=Development dotnet ef database update --project librarian/Adapters --startup-project librarian/Ingest",
+      "options": { "cwd": "${workspaceFolder}/src" },
       "presentation": { "reveal": "always", "clear": true },
       "problemMatcher": []
     },
@@ -38,8 +38,8 @@
       "label": "librarian:evals: search vector",
       "detail": "The search eval in vector mode: embeds each question via TEI, scores the ranks",
       "type": "shell",
-      "command": "dotnet run --project src/Librarian.Evals -- search --mode vector",
-      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "command": "dotnet run --project librarian/Evals -- search --mode vector",
+      "options": { "cwd": "${workspaceFolder}/src" },
       "presentation": { "reveal": "always", "clear": true },
       "problemMatcher": []
     },
@@ -47,8 +47,8 @@
       "label": "librarian:evals: search keyword",
       "detail": "The search eval in keyword mode: the tsquery side, scored on the same cases",
       "type": "shell",
-      "command": "dotnet run --project src/Librarian.Evals -- search --mode keyword",
-      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "command": "dotnet run --project librarian/Evals -- search --mode keyword",
+      "options": { "cwd": "${workspaceFolder}/src" },
       "presentation": { "reveal": "always", "clear": true },
       "problemMatcher": []
     },
@@ -56,8 +56,8 @@
       "label": "librarian:evals: refine",
       "detail": "The refine eval: every case through the query rewriter, query count and periods scored, the text printed",
       "type": "shell",
-      "command": "dotnet run --project src/Librarian.Evals -- refine",
-      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "command": "dotnet run --project librarian/Evals -- refine",
+      "options": { "cwd": "${workspaceFolder}/src" },
       "presentation": { "reveal": "always", "clear": true },
       "problemMatcher": []
     },
@@ -65,8 +65,8 @@
       "label": "librarian:evals: retrieval",
       "detail": "The retrieval eval: every case through the whole ask pipeline (refine, dig, submit), scored hit/answer/honesty",
       "type": "shell",
-      "command": "dotnet run --project src/Librarian.Evals -- retrieval",
-      "options": { "cwd": "${workspaceFolder}/dotnet" },
+      "command": "dotnet run --project librarian/Evals -- retrieval",
+      "options": { "cwd": "${workspaceFolder}/src" },
       "presentation": { "reveal": "always", "clear": true },
       "problemMatcher": []
     },
@@ -151,14 +151,14 @@
       "label": "app: ingest build+restart",
       "detail": "Host build, then recreate the ingest container — one task, no image rebuild",
       "type": "shell",
-      "command": "cd ../dotnet && dotnet build Librarian.slnx && cd ../infra && docker compose up -d --wait --force-recreate ingest",
+      "command": "cd ../src && dotnet build librarian.slnx && cd ../infra && docker compose up -d --wait --force-recreate ingest",
       "problemMatcher": "$msCompile"
     },
     {
       "label": "app: api build+restart",
       "detail": "Host build, then recreate the api container — one task, no image rebuild",
       "type": "shell",
-      "command": "cd ../dotnet && dotnet build Librarian.slnx && cd ../infra && docker compose up -d --wait --force-recreate api",
+      "command": "cd ../src && dotnet build librarian.slnx && cd ../infra && docker compose up -d --wait --force-recreate api",
       "problemMatcher": "$msCompile"
     }
   ],
