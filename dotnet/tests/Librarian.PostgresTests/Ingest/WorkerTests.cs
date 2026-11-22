@@ -8,7 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Librarian.Tests.Ingest;
+namespace Librarian.PostgresTests.Ingest;
 
 [Collection("Postgres")]
 public sealed class WorkerTests
@@ -50,7 +50,7 @@ public sealed class WorkerTests
             Directory.CreateDirectory(Paths.InboxPath);
 
             var config = new ConfigurationBuilder()
-                .SetBasePath(Path.Combine(ApplicationProjectTests.FindSolutionRoot(), "src", "Librarian.Ingest"))
+                .SetBasePath(Path.Combine(SolutionRoot.Find(), "src", "Librarian.Ingest"))
                 .AddJsonFile("appsettings.json", optional: false)
                 .AddJsonFile("appsettings.Development.json", optional: true)
                 .AddEnvironmentVariables()
