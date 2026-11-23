@@ -1,5 +1,4 @@
 using Api.Features.Auth;
-
 using Microsoft.Extensions.Hosting;
 
 namespace Api.Features.Whoami;
@@ -15,12 +14,6 @@ internal static class WhoamiEndpoints
                 Mode: AuthOptions.ModeFor(environment),
                 Scheme: identity?.AuthenticationType,
                 Authenticated: identity is { IsAuthenticated: true },
-                Identity: identity is { IsAuthenticated: true }
-                    ? new WhoamiIdentity(
-                        Sub: http.User.FindFirst("sub")?.Value,
-                        Email: http.User.FindFirst("email")?.Value,
-                        Name: identity.Name)
-                    : null,
                 Claims: [.. http.User.Claims.Select(claim => new WhoamiClaim(claim.Type, claim.Value))]));
         });
         return app;

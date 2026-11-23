@@ -27,8 +27,7 @@ internal sealed class BearerHandler : AuthenticationHandler<BearerOptions>
             return Task.FromResult(AuthenticateResult.Fail("The bearer token does not match."));
 
         var name = string.IsNullOrWhiteSpace(Options.Name) ? Scheme.Name : Options.Name!;
-        var identity = new ClaimsIdentity(Scheme.Name);
-        identity.AddClaim(new Claim(ClaimsIdentity.DefaultNameClaimType, name));
+        var identity = new ClaimsIdentity([new Claim("name", name)], Scheme.Name, "name", "role");
         return Task.FromResult(AuthenticateResult.Success(
             new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name)));
     }

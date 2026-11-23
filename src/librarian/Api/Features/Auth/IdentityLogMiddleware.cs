@@ -10,8 +10,8 @@ internal sealed class IdentityLogMiddleware(RequestDelegate next, ILogger<Identi
             logger.LogInformation(
                 "Authenticated request: scheme {Scheme}, name {Name}, email {Email}, subject {Subject}",
                 identity.AuthenticationType,
-                identity.Name,
-                context.User.FindFirst("email")?.Value,
+                context.User.Name(),
+                context.User.Email(),
                 context.User.FindFirst("sub")?.Value);
         }
 
