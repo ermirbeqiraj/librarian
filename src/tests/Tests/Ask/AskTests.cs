@@ -9,18 +9,10 @@ public sealed class AskTests
     public void The_sql_is_wrapped_as_a_capped_subquery()
     {
         Assert.Equal(
-            """
-            SELECT * FROM (
-            SELECT kind FROM documents
-            ) AS q LIMIT 201
-            """,
+            "SELECT * FROM (\nSELECT kind FROM documents\n) AS q LIMIT 201",
             PostgresSql.Wrapped("SELECT kind FROM documents"));
         Assert.Equal(
-            """
-            SELECT * FROM (
-            SELECT kind FROM documents
-            ) AS q LIMIT 201
-            """,
+            "SELECT * FROM (\nSELECT kind FROM documents\n) AS q LIMIT 201",
             PostgresSql.Wrapped(" SELECT kind FROM documents; "));
     }
 
