@@ -73,6 +73,9 @@ services:
       - ../src/librarian/Ingest/bin/Debug/net10.0:/app:ro
       # The dev root at the same absolute path — ingest is the only app that writes the library.
       - ${HOME}/.local/share/librarian-dotnet-dev:${HOME}/.local/share/librarian-dotnet-dev
+      # The dev root's instructions/ points outside the mount; this binds the same path from the
+      # host — where the link resolves — so the files exist where the app looks for them.
+      - ${HOME}/.local/share/librarian-dotnet-dev/instructions:${HOME}/.local/share/librarian-dotnet-dev/instructions:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -87,15 +90,16 @@ services:
     command: ["Api.dll"]
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      # Bridge network, so the published port answers on the real host; on the bridge
-      # the app's files' 127.0.0.1 would point at itself — env wins over files.
-      Urls: http://0.0.0.0:5080
-      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=librarian;Username=librarian;Password=librarian
     ports:
       - "127.0.0.1:5080:5080"
     volumes:
-      # No library mount: Api cannot write to the library (docs/architecture.md).
+      # The host's build output is the app; a rebuild needs only a container restart.
       - ../src/librarian/Api/bin/Debug/net10.0:/app:ro
+      # The dev root, read-only: the ask's instructions live there, and the Api never writes the library.
+      - ${HOME}/.local/share/librarian-dotnet-dev:${HOME}/.local/share/librarian-dotnet-dev:ro
+      # The dev root's instructions/ points outside the mount; this binds the same path from the
+      # host — where the link resolves — so the files exist where the app looks for them.
+      - ${HOME}/.local/share/librarian-dotnet-dev/instructions:${HOME}/.local/share/librarian-dotnet-dev/instructions:ro
     depends_on:
       postgres:
         condition: service_healthy

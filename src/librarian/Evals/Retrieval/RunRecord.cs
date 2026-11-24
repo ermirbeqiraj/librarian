@@ -28,7 +28,7 @@ internal static class RunRecord
             Commit = Git.FindSha(),
             Model = options.Model,
             Reasoning = options.ReasoningEffort,
-            Prompt = Path.GetFileName(options.InstructionsPath),
+            Prompt = options.Instructions,
             Cases = results.Select(r => new
             {
                 File = r.Case.FileName,
