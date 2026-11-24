@@ -6,6 +6,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <ProjectReference Include="..\Application\Application.csproj" />
     <ProjectReference Include="..\Adapters\Adapters.csproj" />
   </ItemGroup>

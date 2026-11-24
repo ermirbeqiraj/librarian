@@ -97,17 +97,19 @@ public static class DependencyInjectionExtensions
         services.AddSingleton(_ => FieldCatalog.LoadDefault());
         services.AddSingleton<ExtractMessageBuilder>();
         services.AddKeyedSingleton<AIAgent>("extractAgent", (sp, _) => MistralAgentFactory.CreateExtractAgent(
-            sp, mistral.ApiKey, ingest.Extract.BaseUrl, ingest.Extract.Model, ingest.Extract.ReasoningEffort, ingest.Extract.MaxRounds));
+            sp, mistral.ApiKey, ingest.Extract.BaseUrl, ingest.Extract.Model, ingest.Extract.ReasoningEffort,
+            ingest.Extract.MaxRounds, Path.Combine(paths.InstructionsPath, ingest.Extract.Instructions)));
 
         return services;
     }
 
     public static IServiceCollection AddLibrarianRefine(
-        this IServiceCollection services, MistralOptions mistral, RefineOptions refine)
+        this IServiceCollection services, LibrarianOptions paths, MistralOptions mistral, RefineOptions refine)
     {
         services.AddSingleton(mistral);
         services.AddSingleton(refine);
-        services.AddSingleton<IRefineRunOptionsFactory, RefineRunOptionsFactory>();
+        services.AddSingleton<IRefineRunOptionsFactory>(new RefineRunOptionsFactory(
+            Path.Combine(paths.InstructionsPath, refine.Instructions)));
         services.AddKeyedSingleton<AIAgent>("refineAgent", (sp, _) =>
         {
             mistral.Validate();

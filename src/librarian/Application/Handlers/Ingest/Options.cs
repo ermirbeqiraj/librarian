@@ -10,6 +10,7 @@ public sealed class LibrarianOptions
     public string ProcessedPath => Path.Combine(Root, Folders.Processed);
     public string ResultsPath => Path.Combine(Root, Folders.Results);
     public string DocumentsPath => Path.Combine(Root, Folders.Documents);
+    public string InstructionsPath => Path.Combine(Root, "instructions");
 
     public void Validate()
     {
@@ -102,6 +103,7 @@ public sealed class IngestOptions
         public string BaseUrl { get; set; } = null!;
         public string Model { get; set; } = null!;
         public string ReasoningEffort { get; set; } = null!;
+        public string Instructions { get; set; } = null!;
         public int MaxRounds { get; set; }
         public int HeadPages { get; set; }
         public int TailPages { get; set; }
@@ -112,6 +114,7 @@ public sealed class IngestOptions
             Validation.Required("Ingest:Extract:BaseUrl", BaseUrl);
             Validation.Required("Ingest:Extract:Model", Model);
             Validation.Required("Ingest:Extract:ReasoningEffort", ReasoningEffort);
+            Validation.InstructionFileName("Ingest:Extract", Instructions);
             Positive("Ingest:Extract:MaxRounds", MaxRounds);
             Positive("Ingest:Extract:HeadPages", HeadPages);
             Positive("Ingest:Extract:TailPages", TailPages);

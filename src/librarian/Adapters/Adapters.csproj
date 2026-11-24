@@ -22,9 +22,4 @@
     <PackageReference Include="Pgvector.EntityFrameworkCore" />
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="Mistral\Instructions\extract.md" />
-    <EmbeddedResource Include="Mistral\Instructions\refine-v3.md" />
-  </ItemGroup>
-
 </Project>

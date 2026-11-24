@@ -6,7 +6,7 @@ public sealed class AskOptions
     public string Model { get; set; } = null!;
     public string ReasoningEffort { get; set; } = null!;
     public int MaxRounds { get; set; }
-    public string InstructionsPath { get; set; } = null!;
+    public string Instructions { get; set; } = null!;
     public string? FileUrl { get; set; }
     public int TimeoutSeconds { get; set; } = 480;
 
@@ -18,9 +18,7 @@ public sealed class AskOptions
             throw new InvalidOperationException($"Ask:ReasoningEffort '{ReasoningEffort}' is not one of low, medium, high.");
         if (MaxRounds < 1)
             throw new InvalidOperationException("Ask:MaxRounds is not set.");
-        if (string.IsNullOrWhiteSpace(InstructionsPath) || !Path.IsPathRooted(InstructionsPath))
-            throw new InvalidOperationException("Ask:InstructionsPath must be an absolute path (appsettings overlay or env var).");
-        if (TimeoutSeconds < 1)
+        Validation.InstructionFileName("Ask", Instructions);        if (TimeoutSeconds < 1)
             throw new InvalidOperationException("Ask:TimeoutSeconds must be at least 1 second.");
         if (FileUrl is not null && !FileUrl.Contains("{path}"))
             throw new InvalidOperationException("Ask:FileUrl must hold '{path}' where the file's path goes, or stay unset.");

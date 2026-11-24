@@ -12,7 +12,8 @@ namespace Adapters.Mistral;
 
 internal static class MistralAgentFactory
 {
-    internal static AIAgent CreateExtractAgent(IServiceProvider services, string apiKey, string baseUrl, string model, string reasoningEffort, int maxRounds)
+    internal static AIAgent CreateExtractAgent(
+        IServiceProvider services, string apiKey, string baseUrl, string model, string reasoningEffort, int maxRounds, string instructionsPath)
     {
         var loggerFactory = services.GetRequiredService<ILoggerFactory>();
 
@@ -25,7 +26,7 @@ internal static class MistralAgentFactory
             Name = "extractAgent",
             ChatOptions = new ChatOptions
             {
-                Instructions = InstructionsText(),
+                Instructions = File.ReadAllText(instructionsPath).Trim(),
                 Reasoning = new ReasoningOptions
                 {
                     Effort = reasoningEffort switch
@@ -100,14 +101,5 @@ internal static class MistralAgentFactory
             Transport = new HttpClientPipelineTransport(new HttpClient(new ThinkingShim())),
         });
         return openAiClient.GetChatClient(model).AsIChatClient();
-    }
-
-    private static string InstructionsText()
-    {
-        var assembly = Assembly.GetExecutingAssembly();
-        using var stream = assembly.GetManifestResourceStream("Adapters.Mistral.Instructions.extract.md")
-            ?? throw new InvalidOperationException("extract.md is not an embedded resource of Adapters.");
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd().Trim();
     }
 }
