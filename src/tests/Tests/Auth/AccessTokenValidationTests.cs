@@ -28,7 +28,7 @@ public sealed class AccessTokenValidationTests
 
     private static string NewToken(
         RsaSecurityKey key,
-        string issuer = "https://team.cloudflareaccess.com/",
+        string issuer = "https://team.cloudflareaccess.com",
         string audience = "test-aud",
         DateTimeOffset? expires = null)
     {
@@ -89,7 +89,7 @@ public sealed class AccessTokenValidationTests
         using var http = new HttpClient(new CertsServer(jwks));
         var keys = new AccessKeys(http, Options.Certs);
 
-        var result = await ValidateAsync(NewToken(key, issuer: "https://stranger.cloudflareaccess.com/"), keys);
+        var result = await ValidateAsync(NewToken(key, issuer: "https://stranger.cloudflareaccess.com"), keys);
 
         Assert.False(result.IsValid);
         Assert.IsType<SecurityTokenInvalidIssuerException>(result.Exception);
