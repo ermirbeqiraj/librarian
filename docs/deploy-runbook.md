@@ -59,7 +59,8 @@ network or the postgres host itself, the target's own convention.
 
     <root>/
     ├── inbox/
-    ├── processed/
+    ├── processed/                  ← filed as <kind>/<yyyy-MM>/<ingestionId>.<ext>
+    ├── quarantine/                 ← failed/given-up files as <yyyy-MM>/<id>.<ext> (or original name on give-up)
     ├── results/
     ├── documents/
     └── instructions/
@@ -68,6 +69,9 @@ network or the postgres host itself, the target's own convention.
         ├── extract.md
         └── server.md
 
+No runtime state files live in the root (the old `ocr-calls.json` is gone; OCR errors are
+retried 3 times, then the file is quarantined).
+
 ### 3. Cloudflare
 
 **Produces:** `<hostname>`, `<team>`, `<aud>`.
@@ -75,15 +79,30 @@ network or the postgres host itself, the target's own convention.
 Cloudflare first, the Api second — the Api refuses to start without `Auth:Access`. In the
 Zero Trust dashboard (or the Cloudflare API / its MCP server):
 
-1. Tunnel: Networks → Tunnels → the target's tunnel → Public Hostnames → add `<hostname>`,
+1. **Tunnel**: Networks → Tunnels → the target's tunnel → Public Hostnames → add `<hostname>`,
    service HTTP `localhost:5080` (the api's published port, [step 5](#5-both-hosts-up)).
-2. Access application: Access → Applications → Add → Self-hosted, domain `<hostname>`.
-3. Policy: one Allow policy with the operators' emails (or attach an existing reusable one).
-4. Login methods: Settings → Authentication — enable at least one IdP (one-time PIN and/or
-   Google) on the app (`allowed_idps`); empty means no login and the auth fails.
-5. Session duration: 1 month.
-6. Note the app's **Audience** (the AUD tag) and the team domain `<team>.cloudflareaccess.com`
-   (start of the dashboard URL) — they go into the api overlay's `Auth:Access`.
+2. **Access application**: Access → Applications → Add → Self-hosted, domain `<hostname>`.
+   - Policy: one Allow policy with the operators' emails (or attach an existing reusable one).
+   - Login methods: enable at least one IdP (one-time PIN and/or Google) on the app
+     (`allowed_idps`); empty means no login and the auth fails. Session duration: 1 month.
+   - Note the app's **Audience** (the AUD tag) and the team domain `<team>.cloudflareaccess.com`
+     (start of the dashboard URL) — they go into the api overlay's `Auth:Access`.
+3. **MCP clients (managed OAuth on the same app)**: set `oauth_configuration.enabled: true` on
+   the application — opt-in for self-hosted apps. The Api code is unchanged; the edge still
+   mints the same JWT to the origin. Non-browser clients then get `401` with
+   `WWW-Authenticate: Bearer ... resource_metadata="https://<hostname>/.well-known/cloudflare-access-protected-resource/mcp"`,
+   discovery via `authorization_servers: https://<team>.cloudflareaccess.com`
+   (`/cdn-cgi/access/oauth/{registration,authorization,token}`); authorization needs PKCE (S256)
+   and `resource=https://<hostname>/mcp`.
+   - Clients without Dynamic Client Registration need a **static client**: POST one to the
+     registration endpoint with the client's redirect URI (e.g. Mistral's
+     `https://callback.mistral.ai/v1/integrations_auth/oauth2_callback`) and
+     `resource=https://<hostname>/mcp`; give the connector the returned `client_id`.
+   - Non-localhost redirect URIs are rejected until added to the app's
+     `oauth_configuration.dynamic_client_registration.allowed_uris`. The registration endpoint
+     has no PUT — re-register a new client instead of updating.
+   - Do NOT add a second hostname (e.g. `mcp.<domain>`) to the tunnel for a portal-style setup:
+     tunnel-forwarded traffic reaches the origin and the app 401s it.
 
 From outside, before any Api runs:
 
