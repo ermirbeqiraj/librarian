@@ -26,15 +26,6 @@
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "dotnet: migrate",
-      "detail": "EF Core migrations as their own host-side step against the compose Postgres; the connection string comes from the gitignored dev overlay — never on an app's start",
-      "type": "shell",
-      "command": "DOTNET_ENVIRONMENT=Development dotnet ef database update --project librarian/Adapters --startup-project librarian/Ingest",
-      "options": { "cwd": "${workspaceFolder}/src" },
-      "presentation": { "reveal": "always", "clear": true },
-      "problemMatcher": []
-    },
-    {
       "label": "librarian:evals: search vector",
       "detail": "The search eval in vector mode: embeds each question via TEI, scores the ranks",
       "type": "shell",
