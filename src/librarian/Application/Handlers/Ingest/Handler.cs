@@ -14,7 +14,6 @@ public sealed class IngestHandler(
     LibrarianDbContext db,
     [FromKeyedServices("doclingReader")] IDocumentReader doclingReader,
     [FromKeyedServices("ocrReader")] IDocumentReader ocrReader,
-    IOcrBudget ocrBudget,
     IIngestFileStore fileStore,
     [FromKeyedServices("extractAgent")] AIAgent extractAgent,
     IExtractRunOptionsFactory extractRunOptionsFactory,
@@ -58,6 +57,11 @@ public sealed class IngestHandler(
             var unverified = verified.Fields.Count(f => !f.Verified);
             logger.LogInformation("Ingestion {IngestionId} of {File}: kind {Kind}, {Fields} field(s), {Unverified} not verified",
                 ingestion.Id, file.Name, verified.Kind, verified.Fields.Count, unverified);
+
+            var filedPath = $"{Slug(verified.Kind)}/{ingestion.CreatedAt:yyyy-MM}/{ingestion.Id}{Path.GetExtension(file.Name)}";
+            await fileStore.MoveToProcessedAsync(file.Path, filedPath, cancellationToken);
+            ingestion.MarkFiled(filedPath);
+            await db.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -65,9 +69,16 @@ public sealed class IngestHandler(
             ingestion.MarkError(reason, ex.Message);
             await db.SaveChangesAsync(cancellationToken);
             logger.LogError(ex, "Ingestion {IngestionId} of {File} failed ({Reason}): {Message}", ingestion.Id, file.Name, reason, ex.Message);
+            var quarantinePath = $"{ingestion.CreatedAt:yyyy-MM}/{ingestion.Id}{Path.GetExtension(file.Name)}";
+            await fileStore.MoveToQuarantineAsync(file.Path, quarantinePath, cancellationToken);
+            return;
         }
+    }
 
-        await fileStore.MoveToProcessedAsync(file.Path, cancellationToken);
+    private static string Slug(string kind)
+    {
+        var chars = kind.Trim().ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray();
+        return string.Join('_', new string(chars).Split('_', StringSplitOptions.RemoveEmptyEntries));
     }
 
     private async Task<Read> ReadAsync(IngestFile file, CancellationToken cancellationToken)
@@ -84,12 +95,20 @@ public sealed class IngestHandler(
             logger.LogWarning("Docling failed on {File}: {Message}", file.Name, ex.Message);
         }
 
-        if (!ocrBudget.TrySpend(out var refusal))
-            throw new InvalidOperationException($"Docling could not read {file.Name} and the OCR budget refused a call: {refusal}");
-
         logger.LogInformation("Reading {File} with OCR", file.Name);
-        var ocrPages = await ocrReader.ReadAsync(file.Path, cancellationToken);
-        return new Read(ocrPages, ReadBy.Ocr);
+        const int attempts = 3;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                var ocrPages = await ocrReader.ReadAsync(file.Path, cancellationToken);
+                return new Read(ocrPages, ReadBy.Ocr);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException && attempt < attempts)
+            {
+                logger.LogWarning("OCR attempt {Attempt}/{Attempts} on {File} failed: {Message}", attempt, attempts, file.Name, ex.Message);
+            }
+        }
     }
 
     private Task<bool> IsDuplicateAsync(Ingestion ingestion, CancellationToken cancellationToken)
