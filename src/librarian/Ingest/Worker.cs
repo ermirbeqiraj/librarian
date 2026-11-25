@@ -66,7 +66,7 @@ public sealed class Worker(
                     if (attempts >= ingestOptions.MaxAttempts)
                     {
                         logger.LogWarning("Giving up on {File}: {Attempts} attempts are already banked", info.Name, attempts);
-                        await fileStore.MoveToProcessedAsync(path, stoppingToken);
+                        await fileStore.MoveToQuarantineAsync(path, $"{DateTime.UtcNow:yyyy-MM}/{info.Name}", stoppingToken);
                         continue;
                     }
                     logger.LogInformation("Taking {File} ({Size} bytes)", info.Name, info.Length);

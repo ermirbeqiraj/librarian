@@ -19,15 +19,6 @@ public sealed class WorkerTests
             => throw new IOException("no reader in tests");
     }
 
-    private sealed class RefusingBudget : IOcrBudget
-    {
-        public bool TrySpend(out string refusal)
-        {
-            refusal = "the test budget refuses";
-            return false;
-        }
-    }
-
     private sealed class Fixture : IAsyncDisposable
     {
         public ServiceProvider Provider { get; }
@@ -43,7 +34,7 @@ public sealed class WorkerTests
                 ScanIntervalSeconds = 1,
                 Folders = new LibrarianOptions.FoldersOptions
                 {
-                    Inbox = "inbox", Processed = "processed", Results = "results", Documents = "documents",
+                    Inbox = "inbox", Processed = "processed", Results = "results", Documents = "documents", Quarantine = "quarantine",
                 },
             };
             Paths.Validate();
@@ -69,7 +60,6 @@ public sealed class WorkerTests
             services.AddLibrarianAdapters(Paths, Ingest, mistral);
             services.AddKeyedSingleton<IDocumentReader, ThrowingReader>("doclingReader");
             services.AddKeyedSingleton<IDocumentReader, ThrowingReader>("ocrReader");
-            services.AddSingleton<IOcrBudget, RefusingBudget>();
             services.AddPostgres(connectionString);
             services.AddIngestHandler();
             Provider = services.BuildServiceProvider();
@@ -156,7 +146,8 @@ public sealed class WorkerTests
         Assert.Equal(IngestionState.Error, row!.State);
         Assert.Equal(IngestionErrorReason.ReadFailed, row.ErrorReason);
         Assert.False(File.Exists(file));
-        Assert.True(File.Exists(Path.Combine(fixture.Paths.ProcessedPath, name)));
+        var quarantined = Path.Combine(fixture.Paths.QuarantinePath, $"{row!.CreatedAt:yyyy-MM}", $"{row.Id}{Path.GetExtension(name)}");
+        Assert.True(File.Exists(quarantined));
         await fixture.RemoveRowsAsync(name, cancellationToken);
     }
 
@@ -190,7 +181,7 @@ public sealed class WorkerTests
     }
 
     [Fact]
-    public async Task A_file_with_MaxAttempts_banked_rows_is_moved_to_processed_without_a_new_row()
+    public async Task A_file_with_MaxAttempts_banked_rows_is_moved_to_quarantine_without_a_new_row()
     {
         await using var fixture = new Fixture();
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -202,9 +193,10 @@ public sealed class WorkerTests
 
         try
         {
-            await RunUntil(fixture, () => Task.FromResult(File.Exists(Path.Combine(fixture.Paths.ProcessedPath, name))), cancellationToken);
+            var quarantineName = Path.Combine(fixture.Paths.QuarantinePath, $"{DateTime.UtcNow:yyyy-MM}", name);
+            await RunUntil(fixture, () => Task.FromResult(File.Exists(quarantineName)), cancellationToken);
 
-            Assert.True(File.Exists(Path.Combine(fixture.Paths.ProcessedPath, name)));
+            Assert.True(File.Exists(quarantineName));
             Assert.False(File.Exists(file));
             Assert.Equal(fixture.Ingest.MaxAttempts, await fixture.AttemptsAsync(name, 4, cancellationToken));
         }

@@ -98,6 +98,12 @@ public sealed class Ingestion
         Touch();
     }
 
+    public void MarkFiled(string relativePath)
+    {
+        FileName = relativePath;
+        Touch();
+    }
+
     public void CountTry()
     {
         Tries++;
