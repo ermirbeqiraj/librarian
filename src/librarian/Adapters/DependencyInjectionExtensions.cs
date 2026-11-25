@@ -64,7 +64,6 @@ public static class DependencyInjectionExtensions
         services.AddSingleton(mistral);
 
         services.AddSingleton<IIngestFileStore, IngestFileStore>();
-        services.AddSingleton<IOcrBudget, FileOcrBudget>();
 
         services.AddHttpClient("doclingReader", client =>
             {

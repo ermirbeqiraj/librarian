@@ -10,6 +10,7 @@ public sealed class LibrarianOptions
     public string ProcessedPath => Path.Combine(Root, Folders.Processed);
     public string ResultsPath => Path.Combine(Root, Folders.Results);
     public string DocumentsPath => Path.Combine(Root, Folders.Documents);
+    public string QuarantinePath => Path.Combine(Root, Folders.Quarantine);
     public string InstructionsPath => Path.Combine(Root, "instructions");
 
     public void Validate()
@@ -22,6 +23,7 @@ public sealed class LibrarianOptions
         {
             ("Inbox", Folders.Inbox), ("Processed", Folders.Processed),
             ("Results", Folders.Results), ("Documents", Folders.Documents),
+            ("Quarantine", Folders.Quarantine),
         })
         {
             if (string.IsNullOrWhiteSpace(folder) || Path.IsPathRooted(folder) || folder.Contains(".."))
@@ -35,6 +37,7 @@ public sealed class LibrarianOptions
         public string Processed { get; set; } = null!;
         public string Results { get; set; } = null!;
         public string Documents { get; set; } = null!;
+        public string Quarantine { get; set; } = null!;
     }
 }
 
@@ -82,8 +85,6 @@ public sealed class IngestOptions
         public string Model { get; set; } = null!;
         public int MaxPages { get; set; }
         public int MinCharsPerPage { get; set; }
-        public int CallLimit { get; set; }
-        public int HardLimit { get; set; }
         public int TimeoutSeconds { get; set; }
 
         public void Validate()
@@ -92,8 +93,6 @@ public sealed class IngestOptions
             Validation.Required("Ingest:Ocr:Model", Model);
             Positive("Ingest:Ocr:MaxPages", MaxPages);
             Positive("Ingest:Ocr:MinCharsPerPage", MinCharsPerPage);
-            Positive("Ingest:Ocr:CallLimit", CallLimit);
-            Positive("Ingest:Ocr:HardLimit", HardLimit);
             Positive("Ingest:Ocr:TimeoutSeconds", TimeoutSeconds);
         }
     }

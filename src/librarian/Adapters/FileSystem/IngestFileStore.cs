@@ -12,11 +12,19 @@ public sealed class IngestFileStore : IIngestFileStore
         _paths = paths;
         Directory.CreateDirectory(paths.ResultsPath);
         Directory.CreateDirectory(paths.ProcessedPath);
+        Directory.CreateDirectory(paths.QuarantinePath);
     }
 
-    public Task MoveToProcessedAsync(string path, CancellationToken cancellationToken)
+    public Task MoveToProcessedAsync(string path, string relativeDestination, CancellationToken cancellationToken)
+        => MoveAsync(_paths.ProcessedPath, path, relativeDestination);
+
+    public Task MoveToQuarantineAsync(string path, string relativeDestination, CancellationToken cancellationToken)
+        => MoveAsync(_paths.QuarantinePath, path, relativeDestination);
+
+    private static Task MoveAsync(string root, string path, string relativeDestination)
     {
-        var destination = Path.Combine(_paths.ProcessedPath, Path.GetFileName(path));
+        var destination = Path.Combine(root, relativeDestination);
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         if (File.Exists(destination))
             File.Delete(path);
         else
