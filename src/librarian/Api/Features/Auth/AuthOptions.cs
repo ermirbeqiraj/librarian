@@ -33,7 +33,7 @@ internal sealed class AccessOptions
     public string Audience { get; set; } = "";
     public string? CertsUrl { get; set; }
 
-    public string Issuer => $"https://{Team}/";
+    public string Issuer => $"https://{Team}";
     public string Certs => CertsUrl ?? $"https://{Team}/cdn-cgi/access/certs";
     private string Team => Host(TeamDomain);
 
