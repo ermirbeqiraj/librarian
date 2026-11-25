@@ -5,7 +5,7 @@ using Microsoft.Extensions.AI;
 
 namespace Adapters.Mistral;
 
-public sealed class RefineRunOptionsFactory : IRefineRunOptionsFactory
+public sealed class RefineRunOptionsFactory(string instructionsPath) : IRefineRunOptionsFactory
 {
     private static readonly string[] Months =
     [
@@ -34,12 +34,6 @@ public sealed class RefineRunOptionsFactory : IRefineRunOptionsFactory
         };
     }
 
-    private static string InstructionsText()
-    {
-        var assembly = typeof(RefineRunOptionsFactory).Assembly;
-        using var stream = assembly.GetManifestResourceStream("Adapters.Mistral.Instructions.refine-v3.md")
-            ?? throw new InvalidOperationException("refine-v3.md is not an embedded resource of Adapters.");
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd().Trim();
-    }
+    private string InstructionsText()
+        => File.ReadAllText(instructionsPath).Trim();
 }

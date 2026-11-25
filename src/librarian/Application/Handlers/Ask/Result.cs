@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Application.Domain;
 
 namespace Application.Handlers.Ask;
 
@@ -27,17 +28,14 @@ public static class JsonArray
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
 [JsonSerializable(typeof(AskResult))]
 [JsonSerializable(typeof(AskedValue))]
-[JsonSerializable(typeof(AskedPassage))]
 [JsonSerializable(typeof(AskedSource))]
 [JsonSerializable(typeof(AskedHit))]
 [JsonSerializable(typeof(AskedSeen))]
 [JsonSerializable(typeof(SubmittedValue))]
-[JsonSerializable(typeof(SubmittedPassage))]
 [JsonSerializable(typeof(SubmittedSource))]
 [JsonSerializable(typeof(Ports.Ask.SqlResult))]
 [JsonSerializable(typeof(List<long>))]
 [JsonSerializable(typeof(List<SubmittedValue>))]
-[JsonSerializable(typeof(List<SubmittedPassage>))]
 [JsonSerializable(typeof(List<SubmittedSource>))]
 [JsonSerializable(typeof(Ports.Ask.Schema))]
 public partial class AskJsonContext : JsonSerializerContext;
@@ -47,15 +45,16 @@ public enum AskStatus
     [JsonPropertyName("not_found")] NotFound,
     [JsonPropertyName("partial")] Partial,
     [JsonPropertyName("found")] Found,
-    [JsonPropertyName("error")] Error,
 }
+
+public sealed class AskFailedException(string message) : DomainException(message);
 
 public sealed record AskResult(
     string Id,
     string Question,
     AskStatus Status,
+    string Reasoning,
     List<AskedValue> Values,
-    List<AskedPassage> Passages,
     List<AskedSource> Sources,
     DateTime? CompletedAt,
     string? Error);
@@ -66,16 +65,15 @@ public sealed record AskedValue(
     [property: JsonPropertyName("unit")] string? Unit,
     [property: JsonPropertyName("source")] int Source);
 
-public sealed record AskedPassage(
-    [property: JsonPropertyName("text")] string Text,
-    [property: JsonPropertyName("source")] int Source);
-
 public sealed record AskedSource(
     [property: JsonPropertyName("id")] int Id,
     [property: JsonPropertyName("document_id")] long DocumentId,
     [property: JsonPropertyName("kind")] string Kind,
     [property: JsonPropertyName("section")] string? Section,
     [property: JsonPropertyName("section_id")] long? SectionId,
+    [property: JsonPropertyName("quote")] string? Quote,
+    [property: JsonPropertyName("section_chars")] int? SectionChars,
+    [property: JsonPropertyName("document_chars")] int? DocumentChars,
     [property: JsonPropertyName("file")] string? File);
 
 public sealed record AskedHit(
@@ -98,8 +96,8 @@ public sealed record AskedSeen(
 public sealed record Submitted(
     string Question,
     string Status,
+    string Reasoning,
     List<SubmittedValue> Values,
-    List<SubmittedPassage> Passages,
     List<SubmittedSource> Sources);
 
 public sealed record SubmittedValue(
@@ -108,13 +106,10 @@ public sealed record SubmittedValue(
     [property: JsonPropertyName("unit")] string? Unit,
     [property: JsonPropertyName("source")] int Source);
 
-public sealed record SubmittedPassage(
-    [property: JsonPropertyName("text")] string Text,
-    [property: JsonPropertyName("source")] int Source);
-
 public sealed record SubmittedSource(
     [property: JsonPropertyName("id")] int Id,
     [property: JsonPropertyName("document_id")] long DocumentId,
     [property: JsonPropertyName("kind")] string Kind,
     [property: JsonPropertyName("section")] string? Section,
-    [property: JsonPropertyName("section_id")] long? SectionId);
+    [property: JsonPropertyName("section_id")] long? SectionId,
+    [property: JsonPropertyName("quote")] string? Quote);

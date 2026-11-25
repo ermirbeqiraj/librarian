@@ -62,8 +62,18 @@ public sealed class MatchingTests
     [Fact]
     public void A_quote_matches_squeezed_but_complete()
     {
-        var passages = new List<AskedPassage> { new("Il canone è di 28,99 € al mese, IVA inclusa.", 0) };
-        Assert.True(Matching.ContainsQuote("28,99 € al mese", passages));
-        Assert.False(Matching.ContainsQuote("28,99 € all'anno", passages));
+        var sources = new List<AskedSource> { Source("Il canone è di 28,99 € al mese, IVA inclusa.") };
+        Assert.True(Matching.ContainsQuote("28,99 € al mese", sources));
+        Assert.False(Matching.ContainsQuote("28,99 € all'anno", sources));
     }
+
+    [Fact]
+    public void A_quote_is_read_from_its_source_only()
+    {
+        var sources = new List<AskedSource> { Source("Il canone è di 28,99 € al mese, IVA inclusa.") with { Quote = null } };
+        Assert.False(Matching.ContainsQuote("28,99 € al mese", sources));
+    }
+
+    private static AskedSource Source(string quote)
+        => new(1, 1, "bill", null, 1, quote, 843, 5210, null);
 }

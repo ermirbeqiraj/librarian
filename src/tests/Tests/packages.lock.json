@@ -487,6 +487,15 @@
         "resolved": "5.0.0",
         "contentHash": "dDoKi0PnDz31yAyETfRntsLArTlVAVzUzCIvvEDsDsucrl33Dl8pIJG06ePTJTI3tGpeyHS9Cq7Foc/s4EeKcg=="
       },
+      "ModelContextProtocol.Core": {
+        "type": "Transitive",
+        "resolved": "2.4.0",
+        "contentHash": "q98pZMlcxhsh0LpGXcT2ow7sGNveCPhDlJT3zJ7Cz5nNyPmPkm8P57dUIUpzv1w6qWbdSZcR/Z+RbZtNYjEmXQ==",
+        "dependencies": {
+          "Microsoft.Extensions.AI.Abstractions": "10.11.0",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.14"
+        }
+      },
       "Npgsql": {
         "type": "Transitive",
         "resolved": "10.0.4",
@@ -679,7 +688,9 @@
         "dependencies": {
           "Adapters": "[1.0.0, )",
           "Application": "[1.0.0, )",
-          "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.15, )"
+          "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.15, )",
+          "ModelContextProtocol": "[2.4.0, )",
+          "ModelContextProtocol.AspNetCore": "[2.4.0, )"
         }
       },
       "application": {
@@ -878,6 +889,26 @@
         "contentHash": "s5xzXGWqqlmmThMnQ1rnmL7QLwbluB2JqX9NaK8C9HPuHzN7kfmiddTRbwts5rQssATkh2B18RrofjeUD8g14A==",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.15"
+        }
+      },
+      "ModelContextProtocol": {
+        "type": "CentralTransitive",
+        "requested": "[2.4.0, )",
+        "resolved": "2.4.0",
+        "contentHash": "3oMhK5W0G3H8+1SbMosV7meE6sKQfmzLKSNtjQ3dGZ+IJU5RomKTs/bKWHFyOJQNMWk//+iClQJfcMpHnwCFsg==",
+        "dependencies": {
+          "Microsoft.Extensions.Caching.Abstractions": "10.0.14",
+          "Microsoft.Extensions.Hosting.Abstractions": "10.0.14",
+          "ModelContextProtocol.Core": "[2.4.0]"
+        }
+      },
+      "ModelContextProtocol.AspNetCore": {
+        "type": "CentralTransitive",
+        "requested": "[2.4.0, )",
+        "resolved": "2.4.0",
+        "contentHash": "qo04FrgNKc5obyjzqd8CTu1vofrxcbKnOFVzxQ1+b3G9SBluwRMT31NZTztegJ1QDri4Z/3jUe8UqaIc+2xmCw==",
+        "dependencies": {
+          "ModelContextProtocol": "[2.4.0]"
         }
       },
       "Npgsql.EntityFrameworkCore.PostgreSQL": {

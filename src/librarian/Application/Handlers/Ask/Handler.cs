@@ -48,13 +48,14 @@ public sealed class AskHandler(
         var id = Guid.NewGuid().ToString("N");
         using var activity = AskTrace.Source.StartActivity();
         activity?.AddBaggage(AskTrace.AskId, id);
+        Domain.Ask? row = null;
 
-        var refined = await refiner.RefineAsync(question, DateOnly.FromDateTime(DateTime.Now), cancellationToken);
-        var row = Domain.Ask.Create(id, question, JsonSerializer.Serialize(refined, RefineJson.Options), DateTime.UtcNow);
-        db.Asks.Add(row);
-        await db.SaveChangesAsync(cancellationToken);
         try
         {
+            var refined = await refiner.RefineAsync(question, DateOnly.FromDateTime(DateTime.Now), cancellationToken);
+            row = Domain.Ask.Create(id, question, JsonSerializer.Serialize(refined, RefineJson.Options), DateTime.UtcNow);
+            db.Asks.Add(row);
+            await db.SaveChangesAsync(cancellationToken);
             var submitted = await RunAsync(id, refined, ct);
             var result = await LinkAsync(submitted, ct);
             row.MarkCompleted(Wire(result.Status), JsonSerializer.Serialize(result, AskJson.Options), DateTime.UtcNow);
@@ -65,16 +66,22 @@ public sealed class AskHandler(
         }
         catch (OperationCanceledException) when (bounded.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
-            row.MarkFailed($"The ask timed out after {options.TimeoutSeconds}s.", DateTime.UtcNow);
-            await db.SaveChangesAsync(CancellationToken.None);
-            throw new TimeoutException($"The ask timed out after {options.TimeoutSeconds}s.");
+            await MarkFailedAsync(row, $"The ask timed out after {options.TimeoutSeconds}s.");
+            throw new AskFailedException($"The ask {id} timed out after {options.TimeoutSeconds}s.");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            row.MarkFailed(ex.Message, DateTime.UtcNow);
-            await db.SaveChangesAsync(CancellationToken.None);
-            throw;
+            await MarkFailedAsync(row, ex.Message);
+            throw new AskFailedException($"The ask {id} failed: {ex.Message}");
         }
+    }
+
+    private async Task MarkFailedAsync(Domain.Ask? row, string error)
+    {
+        if (row is null)
+            return;
+        row.MarkFailed(error, DateTime.UtcNow);
+        await db.SaveChangesAsync(CancellationToken.None);
     }
 
     private async Task<(string Id, Submitted Submitted)> RunAsync(string id, Refined refined, CancellationToken ct)
@@ -106,11 +113,13 @@ public sealed class AskHandler(
             return JsonArray.Of(await sectionSearch.HitsAsync(hits, query, seen, cancellationToken: ct));
         }
 
-        string SubmitResult(string status, List<SubmittedValue> values, List<SubmittedPassage> passages, List<SubmittedSource> sources)
+        string SubmitResult(string status, List<SubmittedValue> values, List<SubmittedSource> sources, string reasoning)
         {
             using var tool = AskTrace.Source.StartActivity("execute_tool submit");
             StatusOf(status);
-            submitted = new Submitted(refined.UserQuery, status, values, passages, sources);
+            if (string.IsNullOrWhiteSpace(reasoning))
+                throw new ArgumentException("The reasoning is required: say how you reached the verdict.");
+            submitted = new Submitted(refined.UserQuery, status, reasoning, values, sources);
             return "ok";
         }
 
@@ -172,23 +181,51 @@ public sealed class AskHandler(
     {
         var submitted = run.Submitted;
         var documentIds = submitted.Sources.Select(source => source.DocumentId).Distinct().ToList();
+        var sectionIds = submitted.Sources
+            .Where(source => source.SectionId is not null)
+            .Select(source => source.SectionId!.Value)
+            .Distinct()
+            .ToList();
         var files = await db.Ingestions
             .Where(i => i.DocumentId != null && documentIds.Contains(i.DocumentId.Value))
             .ToDictionaryAsync(i => i.DocumentId!.Value, i => i.FileName, cancellationToken);
+        var sectionChars = await db.Set<Section>()
+            .Where(s => sectionIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.Text.Length, cancellationToken);
+        var documentChars = await db.Set<Section>()
+            .Where(s => documentIds.Contains(s.DocumentId))
+            .GroupBy(s => s.DocumentId)
+            .Select(g => new { DocumentId = g.Key, Chars = g.Sum(section => section.Text.Length) })
+            .ToDictionaryAsync(x => x.DocumentId, x => x.Chars, cancellationToken);
         var sources = new List<AskedSource>();
         foreach (var source in submitted.Sources)
         {
             var file = (string?)null;
             if (options.FileUrl is not null && files.TryGetValue(source.DocumentId, out var name))
                 file = options.FileUrl.Replace("{path}", Uri.EscapeDataString(Path.Combine(paths.ProcessedPath, name)));
-            sources.Add(new AskedSource(source.Id, source.DocumentId, source.Kind, source.Section, source.SectionId, file));
+            int? sectionSize = null, documentSize = null;
+            if (source.SectionId is { } id)
+            {
+                sectionSize = sectionChars.GetValueOrDefault(id);
+                documentSize = documentChars.GetValueOrDefault(source.DocumentId);
+            }
+            sources.Add(new AskedSource(
+                source.Id,
+                source.DocumentId,
+                source.Kind,
+                source.Section,
+                source.SectionId,
+                source.Quote,
+                sectionSize,
+                documentSize,
+                file));
         }
         return new AskResult(
             run.Id,
             submitted.Question,
             StatusOf(submitted.Status),
+            submitted.Reasoning,
             [.. submitted.Values.Select(value => new AskedValue(value.Name, value.Value, value.Unit, value.Source))],
-            [.. submitted.Passages.Select(passage => new AskedPassage(passage.Text, passage.Source))],
             sources,
             CompletedAt: null,
             Error: null);
@@ -207,7 +244,6 @@ public sealed class AskHandler(
         AskStatus.Found => "found",
         AskStatus.Partial => "partial",
         AskStatus.NotFound => "not_found",
-        AskStatus.Error => "error",
         _ => throw new InvalidOperationException($"The status {status} has no wire name."),
     };
 }

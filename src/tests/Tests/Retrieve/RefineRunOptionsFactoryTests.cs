@@ -3,15 +3,31 @@ using Microsoft.Agents.AI;
 
 namespace Tests.Retrieve;
 
-public sealed class RefineRunOptionsFactoryTests
+public sealed class RefineRunOptionsFactoryTests : IDisposable
 {
+    private readonly string path = Path.Combine(Path.GetTempPath(), $"refine-instructions-{Guid.NewGuid():N}.md");
+
+    public RefineRunOptionsFactoryTests()
+        => File.WriteAllText(path, "Oggi è {today} ({oggi}). Il \"period\" finisce a {today}.\n");
+
+    public void Dispose()
+        => File.Delete(path);
+
+    private string Instructions(DateOnly today)
+    {
+        var runOptions = new RefineRunOptionsFactory(path).Create(today);
+        var options = Assert.IsType<ChatClientAgentRunOptions>(runOptions);
+        var instructions = options.ChatOptions?.Instructions;
+        Assert.NotNull(instructions);
+        return instructions;
+    }
+
     [Fact]
     public void The_instructions_carry_today_and_oggi()
     {
-        var instructions = Instructions(new DateOnly(2026, 11, 11));
-        Assert.Contains("Oggi è 2026-11-11 (11 novembre 2026)", instructions);
-        Assert.DoesNotContain("{today}", instructions);
-        Assert.DoesNotContain("{oggi}", instructions);
+        Assert.Contains("Oggi è 2026-11-11 (11 novembre 2026)", Instructions(new DateOnly(2026, 11, 11)));
+        Assert.DoesNotContain("{today}", Instructions(new DateOnly(2026, 11, 11)));
+        Assert.DoesNotContain("{oggi}", Instructions(new DateOnly(2026, 11, 11)));
     }
 
     [Fact]
@@ -22,9 +38,9 @@ public sealed class RefineRunOptionsFactoryTests
     }
 
     [Fact]
-    public void The_last_example_s_today_is_filled_at_render_time()
+    public void A_second_today_token_renders_the_same_day()
     {
-        Assert.Contains("\"to\": \"2026-11-11\"", Instructions(new DateOnly(2026, 11, 11)));
+        Assert.Contains("\"period\" finisce a 2026-11-11", Instructions(new DateOnly(2026, 11, 11)));
     }
 
     [Fact]
@@ -34,14 +50,5 @@ public sealed class RefineRunOptionsFactoryTests
         var january = Instructions(new DateOnly(2026, 1, 15));
         Assert.NotEqual(november, january);
         Assert.DoesNotContain("2026-01-15", november);
-    }
-
-    private static string Instructions(DateOnly today)
-    {
-        var runOptions = new RefineRunOptionsFactory().Create(today);
-        var options = Assert.IsType<ChatClientAgentRunOptions>(runOptions);
-        var instructions = options.ChatOptions?.Instructions;
-        Assert.NotNull(instructions);
-        return instructions;
     }
 }

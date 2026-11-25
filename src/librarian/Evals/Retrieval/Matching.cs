@@ -23,10 +23,10 @@ internal partial class Matching
         ["kwh"] = ("kWh", 1m),
     };
 
-    public static bool ContainsQuote(string quote, List<AskedPassage> passages)
+    public static bool ContainsQuote(string quote, List<AskedSource> sources)
     {
         var wanted = Squeeze(quote);
-        return passages.Any(passage => Squeeze(passage.Text).Contains(wanted, StringComparison.Ordinal));
+        return sources.Any(source => source.Quote is not null && Squeeze(source.Quote).Contains(wanted, StringComparison.Ordinal));
     }
 
     public static bool AnySameValue(JsonElement expected, string? unit, List<AskedValue> values)

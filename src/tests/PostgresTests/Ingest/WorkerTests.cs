@@ -56,6 +56,10 @@ public sealed class WorkerTests
                 .AddEnvironmentVariables()
                 .Build();
             Ingest = config.GetSection("Ingest").Get<IngestOptions>() ?? new IngestOptions();
+            // The extract agent reads its instructions file when the handler resolves; the temp
+            // root needs the stub or handler resolution throws before any row is banked.
+            Directory.CreateDirectory(Paths.InstructionsPath);
+            File.WriteAllText(Path.Combine(Paths.InstructionsPath, Ingest.Extract.Instructions), "test instructions");
             var mistral = config.GetSection("Mistral").Get<MistralOptions>() ?? new MistralOptions();
             var connectionString = config.GetConnectionString("Postgres")
                 ?? throw new InvalidOperationException("ConnectionStrings:Postgres is not set.");

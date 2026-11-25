@@ -40,7 +40,7 @@ public static class ProgramExtensions
         services.AddSingleton(evals);
         services.AddSingleton(paths);
         services.AddTei(store);
-        services.AddLibrarianRefine(mistral, refine);
+        services.AddLibrarianRefine(paths, mistral, refine);
         services.AddQueryRefiner();
         services.AddLibrarianAsk(mistral, ask, readerConnectionString);
         services.AddAskHandler();

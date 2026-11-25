@@ -15,7 +15,7 @@ internal sealed record Marks(bool? Answer, bool Honesty)
         if (@case.AnswerValue is { } value)
             answer = Matching.AnySameValue(value, @case.Unit, result.Values);
         else if (@case.Quotes.Count > 0)
-            answer = @case.Quotes.Any(quote => Matching.ContainsQuote(quote, result.Passages));
+            answer = @case.Quotes.Any(quote => Matching.ContainsQuote(quote, result.Sources));
         var honesty = AskHandler.Wire(result.Status) == @case.ExpectedStatus;
         return new Marks(answer, honesty);
     }
@@ -61,7 +61,7 @@ internal sealed class RetrieveCommand
         }
 
         var askOptions = services.GetRequiredService<AskOptions>();
-        Console.WriteLine($"Retrieval eval — model: {askOptions.Model}, reasoning: {askOptions.ReasoningEffort}, prompt: {Path.GetFileName(askOptions.InstructionsPath)}, cases: {cases.Count}");
+        Console.WriteLine($"Retrieval eval — model: {askOptions.Model}, reasoning: {askOptions.ReasoningEffort}, prompt: {askOptions.Instructions}, cases: {cases.Count}");
         Console.WriteLine();
 
         var results = new (RetrieveCase Case, AskResult? Result, Marks? Marks, string? Error)?[cases.Count];

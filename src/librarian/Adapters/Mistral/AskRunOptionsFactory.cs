@@ -45,7 +45,7 @@ public sealed class AskRunOptionsFactory(
         if (library.Error is not null)
             throw new InvalidOperationException($"The library query failed: {library.Error}");
         var schema = await sql.SchemaAsync(cancellationToken);
-        var text = File.ReadAllText(ask.InstructionsPath);
+        var text = File.ReadAllText(Path.Combine(paths.InstructionsPath, ask.Instructions));
         var context = Path.Combine(paths.Root, "context.md");
         text = text.Replace("{context}", File.Exists(context) ? File.ReadAllText(context).Trim() : "");
         text = text.Replace("{rounds}", ask.MaxRounds.ToString());
