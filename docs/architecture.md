@@ -116,7 +116,7 @@ no `~`.
 ## Build and test
 
 VS Code tasks (`.vscode/tasks.json`) are the only control surface: `dotnet: build`, `dotnet:
-test`, `dotnet: migrate`, the `librarian:evals` tasks, the `infra:` tasks (`up/stop/status/logs/
+test`, the `librarian:evals` tasks, the `infra:` tasks (`up/stop/status/logs/
 reset` include the app services), and the app tasks — `app: ingest|api restart` (recreate one
 container on the already-fresh mounted output) and `app: ingest|api build+restart` (host build,
 then the restart, in one task). Nothing of the Librarian runs on the host day to day: `infra: up`
@@ -130,7 +130,8 @@ quality is its own leg: the transcripts are the case files' gold queries (count 
 scored, the text printed for reading). Retrieval is the ask's leg: each case goes through the
 whole ask — refine, the agent's tool rounds, submit — and is scored hit/answer/honesty against
 the case's expected status, values and quotes; it needs the reader role first (a one-time
-`psql ... < infra/postgres/reader.sql`, run by hand) and, to prove the span export, it reads
+`psql ... < infra/postgres/create-reader.sql` plus `\password librarian_reader` for the dev fixture
+password, run by hand) and, to prove the span export, it reads
 the recorded spans back. From `src/`:
 
     dotnet run --project librarian/Evals -- search --mode vector|keyword [--limit N]
@@ -140,18 +141,12 @@ the recorded spans back. From `src/`:
 The .NET 10 SDK lives in `~/.dotnet` on the dev machines: it must be on `PATH` with `DOTNET_ROOT`
 set for the app hosts.
 
-Migrations: EF Core in Adapters (`Postgres/Migrations/`), run as their own step, never on an app's
-start — the `dotnet: migrate` task, host-side against the published `127.0.0.1:5432` (the dev
-connection string comes from the gitignored overlay). From `src/`:
-
-    cd src
-    DOTNET_ENVIRONMENT=Development dotnet ef database update \
-      --project librarian/Adapters --startup-project librarian/Ingest \
-      --connection "Host=127.0.0.1;Port=5432;Database=librarian;Username=librarian;Password=librarian"
-
-Deploy runs the migrations bundle as its own step, as the owner login. Roles, grants, extensions:
-SQL in `infra/postgres/` (`vector`, `unaccent` and — for the ask's `sql` tool — the
-`librarian_reader` role, read-only with a statement timeout, come from there, not from a migration).
+Migrations: EF Core in Adapters (`Postgres/Migrations/`), run by the app itself — the Ingest
+host calls `Database.Migrate()` on start, before its workers begin, as the owner login. Dev
+and deploy alike get the schema from the app starting; there is no separate migrate step.
+Roles, grants, extensions: SQL in `infra/postgres/` (`vector`, `unaccent` and — for the ask's
+`sql` tool — the `librarian_reader` role, read-only with a statement timeout, run by hand after
+the first ingest start, since its grants name real tables — they come from there, not from a migration).
 
 The ask's own storage (the asks row and its spans, kept 15 days by a worker in the Api host) is
 part of the Api host, not the library: write access to the library stays with Ingest alone, and
